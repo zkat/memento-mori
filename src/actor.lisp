@@ -104,7 +104,9 @@
                    (funcall func))
                (actor-exit (exit)
                  (setf exit-reason exit))
-               (condition (c)
+               ;; Ehhh... Dunno what to do for abnormal exits.
+               #+nil
+               (error (c)
                  (setf exit-reason
                        (make-condition
                         'actor-exit
