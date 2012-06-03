@@ -9,7 +9,6 @@
 
 (defstruct actor
   (mailbox (hipocrite.mailbox:make-mailbox))
-  ;; TODO
   (monitor-lock (bt:make-lock))
   monitors
   name

@@ -50,8 +50,6 @@
   #-(or sbcl ccl)
   (error "Unsupported"))
 
-(define-condition timeout (error) ())
-
 (defmacro with-timeout (expires &body body)
   `(flet ((timeout-body () ,@body))
      (let ((expires ,expires))
