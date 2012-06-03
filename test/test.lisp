@@ -33,17 +33,18 @@
 (defun test-chain (n)
   (spawn (lambda ()
            (chain n)
-           (format t "~&Chain has died with reason: ~a~%" (receive)))
+           (format t "~&Chain has died with reason: ~s~%" (receive)))
          :trap-exits-p t))
 
 (defun chain (n)
   (cond ((= n 0)
-         (exit "Kablam"))
+         (error "Goodbye, cruel world"))
         (t
          (format t "~&Spawning new process and waiting.~%")
          (spawn (lambda ()
                   (chain (1- n)))
-                :linkp t)
+                :linkp t
+                :debugp t)
          (receive))))
 
 (defun errors ()

@@ -116,29 +116,31 @@
     (without-interrupts
       (when linkp (link actor parent))
       (when namep (register name actor))
-      (let (exit-reason)
+      (let (exit)
         (unwind-protect
-             (setf exit-reason
+             (setf exit
                    (block result
-                     (let ((*debugger-hook*
-                            (if debugp
-                                *debugger-hook*
-                                (lambda (e v)
-                                  (declare (ignore v))
-                                  (return-from result e)))))
-                       (handler-case
-                           (restart-case
-                               (cons :normal
-                                     (with-local-interrupts
-                                       (funcall func)))
-                             (kill-actor ()
-                               :killed))
-                         (actor-exit (exit) exit)))))
+                     (handler-bind ((actor-exit (lambda (exit)
+                                                  (return-from result exit)))
+                                    (error (lambda (e)
+                                             (when debugp (invoke-debugger e))
+                                             (return-from result
+                                               (make-condition 'actor-exit :actor actor :reason e)))))
+                       (make-condition 'actor-exit
+                                       :actor actor
+                                       :reason
+                                       (restart-case
+                                           (cons :normal
+                                                 (with-local-interrupts
+                                                   (funcall func)))
+                                         (kill-actor ()
+                                           :killed))))))
           (bt:with-recursive-lock-held (*link-lock*)
             (when (actor-links actor)
               (loop for linked-actor in (actor-links actor)
-                 do (unlink actor linked-actor)
-                   (signal-exit linked-actor exit-reason)))))))))
+                 do
+                   (unlink actor linked-actor)
+                   (signal-exit linked-actor exit)))))))))
 
 (defun actor-alive-p (actor)
   (bt:thread-alive-p (actor-thread actor)))
