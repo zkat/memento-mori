@@ -40,9 +40,10 @@
        (mailbox-mbox mailbox)
        :timeout timeout)
     (if completedp
-        result
-        (when on-timeout
-          (funcall on-timeout)))))
+        (values result t)
+        (values (when on-timeout
+                  (funcall on-timeout))
+                nil))))
 
 ;; (defun receive-if (predicate mailbox &key timeout)
 ;;   #-sbcl (error "TODO")

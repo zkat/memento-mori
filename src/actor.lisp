@@ -45,6 +45,10 @@
 (defun current-actor ()
   *current-actor*)
 
+(defun flush-messages ()
+  (unless (nth-value 1 (receive :timeout 0))
+    (flush-messages)))
+
 (defun link (actor &optional (actor2 (current-actor)))
   (bt:with-lock-held (*link-lock*)
     (pushnew actor (actor-links actor2))
