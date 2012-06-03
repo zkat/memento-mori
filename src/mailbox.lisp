@@ -44,13 +44,13 @@
         (when on-timeout
           (funcall on-timeout)))))
 
-(defun receive-if (predicate mailbox &key timeout)
-  #-sbcl (error "TODO")
-  #+sbcl (error "TODO"))
+;; (defun receive-if (predicate mailbox &key timeout)
+;;   #-sbcl (error "TODO")
+;;   #+sbcl (error "TODO"))
 
-(defmacro receive-cond ((mailbox &key timeout) &body clauses)
-  #-sbcl (error "TODO")
-  #+sbcl (error "TODO"))
+;; (defmacro receive-cond ((mailbox &key timeout) &body clauses)
+;;   #-sbcl (error "TODO")
+;;   #+sbcl (error "TODO"))
 
-(defun receive-if-not (predicate mailbox &key timeout)
-  (receive-if (complement predicate) mailbox :timeout timeout))
+;; (defun receive-if-not (predicate mailbox &key timeout)
+;;   (receive-if (complement predicate) mailbox :timeout timeout))
