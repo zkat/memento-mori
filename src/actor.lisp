@@ -24,7 +24,9 @@
   (print-unreadable-object (actor stream :type t :identity t)
     (bt:with-lock-held (*registration-lock*)
       (when (actor-named-p actor)
-        (format stream "~s" (actor-name actor))))))
+        (format stream "~s" (actor-name actor))))
+    (format stream "[~a msgs]" (hipocrite.mailbox:mailbox-count
+                           (actor-mailbox actor)))))
 
 (defun find-actor (name)
   (bt:with-lock-held (*registration-lock*)
