@@ -61,13 +61,14 @@
 
 (define-condition actor-exit (condition)
   ((actor :initarg :actor :reader actor-exit-actor)
-   (reason :initarg :reason :reader actor-exit-reason)))
+   (type :initarg :type :reader actor-exit-type)
+   (info :initarg :info :reader actor-exit-info)))
 
 (defmethod print-object ((actor-exit actor-exit) stream)
   (print-unreadable-object (actor-exit stream :type t :identity t)
-    (format stream "[Actor: ~a; Reason: ~s]"
+    (format stream "[Actor: ~a; Type: ~s]"
             (actor-exit-actor actor-exit)
-            (actor-exit-reason actor-exit))))
+            (actor-exit-type actor-exit))))
 
 (defun signal-exit (actor exit &optional forcep)
   (if (and (bt:with-lock-held ((actor-exit-lock actor))
@@ -79,10 +80,16 @@
                              (signal exit)))))
 
 (defun exit (reason &optional (actor (current-actor)))
-  (signal-exit actor (make-condition 'actor-exit :actor actor :reason reason)))
+  (signal-exit actor (make-condition 'actor-exit
+                                     :actor actor
+                                     :type :exit
+                                     :info reason)))
 
 (defun kill (&optional (actor (current-actor)))
-  (signal-exit actor (make-condition 'actor-exit :actor actor :reason :killed) t))
+  (signal-exit actor (make-condition 'actor-exit
+                                     :actor actor
+                                     :type :kill
+                                     :info :killed) t))
 
 (defstruct monitor-ref monitor monitored-actor)
 (defmethod print-object ((monitor-ref monitor-ref) stream)
@@ -154,16 +161,19 @@
                                     (error (lambda (e)
                                              (when debugp (invoke-debugger e))
                                              (return-from result
-                                               (make-condition 'actor-exit :actor actor :reason e)))))
-                       (make-condition 'actor-exit
-                                       :actor actor
-                                       :reason
-                                       (restart-case
-                                           (cons :normal
-                                                 (with-interrupts
-                                                   (funcall func)))
-                                         (kill-actor ()
-                                           :killed))))))
+                                               (make-condition 'actor-exit
+                                                               :actor actor
+                                                               :type :error
+                                                               :info e)))))
+                       (apply #'make-condition
+                              'actor-exit
+                              :actor actor
+                              (restart-case
+                                  (with-interrupts
+                                    (list :type :normal
+                                          :info (funcall func)))
+                                (kill-actor ()
+                                  (list :type :kill :info :killed)))))))
           (bt:with-lock-held (*link-lock*)
             (when (actor-links actor)
               (loop for linked-actor in (actor-links actor)
