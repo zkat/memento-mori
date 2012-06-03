@@ -118,6 +118,12 @@
                              :timeout timeout
                              :on-timeout on-timeout))
 
+(defmacro receive-cond ((value-var &key timeout on-timeout) &body clauses)
+  `(hipocrite.mailbox:receive-cond (,value-var (actor-mailbox (current-actor))
+                                               :timeout ,timeout
+                                               :on-timeout ,on-timeout)
+     ,@clauses))
+
 (defun spawn (func &key
               linkp monitorp trap-exits-p
               (name nil namep) (debugp *debug-on-error-p*))
