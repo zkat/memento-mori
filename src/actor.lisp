@@ -40,25 +40,8 @@
   (bt:with-lock-held (*registration-lock*)
     (remhash name *registered-actors*)))
 
-;; It's gotta be global, or it'll cause deadlocks. :(
 (defun current-actor ()
   *current-actor*)
-
-(defun spawn (func &key
-              linkp trap-exits-p
-              (name nil namep) (debugp *debug-on-error-p*))
-  (let ((actor (make-actor :function func :trap-exits-p trap-exits-p)))
-    (when linkp
-      (link actor (current-actor)))
-    (setf (actor-thread actor)
-          (bt:make-thread
-           (make-actor-function actor func linkp namep name debugp)
-           :initial-bindings
-           (list*
-            (cons '*current-actor* actor)
-            (cons '*debug-on-error-p* *debug-on-error-p*)
-            bt:*default-special-bindings*)))
-    actor))
 
 (defun link (actor &optional (actor2 (current-actor)))
   (bt:with-lock-held (*link-lock*)
@@ -81,18 +64,44 @@
             (actor-exit-reason actor-exit))))
 
 (defun signal-exit (actor exit &optional forcep)
-  (bt:with-lock-held ((actor-exit-lock actor))
-    (if (and (actor-trap-exits-p actor) (not forcep))
-        (send actor exit)
-        (bt:interrupt-thread (actor-thread actor)
-                             (lambda ()
-                               (signal exit))))))
+  (if (and (bt:with-lock-held ((actor-exit-lock actor))
+             (actor-trap-exits-p actor))
+           (not forcep))
+      (send actor exit)
+      (bt:interrupt-thread (actor-thread actor)
+                           (lambda ()
+                             (signal exit)))))
 
 (defun exit (reason &optional (actor (current-actor)))
   (signal-exit actor (make-condition 'actor-exit :actor actor :reason reason)))
 
 (defun kill (&optional (actor (current-actor)))
   (signal-exit actor (make-condition 'actor-exit :actor actor :reason :killed) t))
+
+(defun actor-alive-p (actor)
+  (bt:thread-alive-p (actor-thread actor)))
+
+(defun send (actor message)
+  (hipocrite.mailbox:send (actor-mailbox actor) message))
+
+(defun receive (&key timeout on-timeout)
+  (hipocrite.mailbox:receive (actor-mailbox (current-actor))
+                             :timeout timeout
+                             :on-timeout on-timeout))
+
+(defun spawn (func &key
+              linkp trap-exits-p
+              (name nil namep) (debugp *debug-on-error-p*))
+  (let ((actor (make-actor :function func :trap-exits-p trap-exits-p)))
+    (setf (actor-thread actor)
+          (bt:make-thread
+           (make-actor-function actor func linkp namep name debugp)
+           :initial-bindings
+           (list*
+            (cons '*current-actor* actor)
+            (cons '*debug-on-error-p* *debug-on-error-p*)
+            bt:*default-special-bindings*)))
+    actor))
 
 (defmacro without-interrupts (&body body)
   #+sbcl
@@ -102,9 +111,9 @@
   #-(or sbcl ccl)
   (error "Unsupported"))
 
-(defmacro with-local-interrupts (&body body)
+(defmacro with-interrupts (&body body)
   #+sbcl
-  `(sb-sys:with-local-interrupts ,@body)
+  `(sb-sys:allow-with-interrupts ,@body)
   #+ccl
   `(ccl:with-interrupts-enabled ,@body)
   #-(or sbcl ccl)
@@ -131,24 +140,14 @@
                                        :reason
                                        (restart-case
                                            (cons :normal
-                                                 (with-local-interrupts
+                                                 (with-interrupts
                                                    (funcall func)))
                                          (kill-actor ()
                                            :killed))))))
-          (bt:with-recursive-lock-held (*link-lock*)
+          (bt:with-lock-held (*link-lock*)
             (when (actor-links actor)
               (loop for linked-actor in (actor-links actor)
                  do
-                   (unlink actor linked-actor)
-                   (signal-exit linked-actor exit)))))))))
-
-(defun actor-alive-p (actor)
-  (bt:thread-alive-p (actor-thread actor)))
-
-(defun send (actor message)
-  (hipocrite.mailbox:send (actor-mailbox actor) message))
-
-(defun receive (&key timeout on-timeout)
-  (hipocrite.mailbox:receive (actor-mailbox (current-actor))
-                             :timeout timeout
-                             :on-timeout on-timeout))
+                   (signal-exit linked-actor exit)
+                   (removef (actor-links linked-actor) actor)))
+            (setf (actor-links actor) nil)))))))
