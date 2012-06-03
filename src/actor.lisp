@@ -1,3 +1,29 @@
+(defpackage #:hipocrite
+  (:use #:cl #:alexandria #:hipocrite.utils)
+  (:export
+   ;; Core
+   #:*debug-on-error-p*
+   #:current-actor
+   #:actor-alive-p
+   #:spawn
+   ;; Messaging
+   #:send
+   #:receive
+   #:receive-cond
+   #:flush-messages
+   ;; Exits
+   #:exit
+   #:kill
+   ;; Named actors
+   #:find-actor
+   #:register
+   #:unregister
+   ;; Linking
+   #:link
+   #:unlink
+   ;; Monitoring
+   #:monitor
+   #:demonitor))
 (in-package #:hipocrite)
 
 ;;;

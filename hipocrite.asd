@@ -11,7 +11,6 @@
             :serial t
             :components
             ((:file "utils")
-             (:file "package")
              (:file "mailbox")
              (:file "actor")
              (:file "timer")))))
