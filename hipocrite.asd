@@ -10,7 +10,8 @@
   ((:module src
             :serial t
             :components
-            ((:file "package")
+            ((:file "utils")
+             (:file "package")
              (:file "mailbox")
              (:file "actor")
              (:file "timer")))))
