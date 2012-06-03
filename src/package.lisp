@@ -1,7 +1,7 @@
 ;;;; package.lisp
 
 (defpackage #:hipocrite
-  (:use #:cl #:alexandria)
+  (:use #:cl #:alexandria #:hipocrite.utils)
   (:export
    #:*debug-on-error-p*
    #:spawn
