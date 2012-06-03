@@ -95,6 +95,12 @@
       (push ref (actor-monitors actor))
       ref)))
 
+(defun demonitor (ref)
+  (let ((actor (monitor-ref-monitored-actor ref)))
+    (bt:with-lock-held ((actor-monitor-lock actor))
+      (removef ref (actor-monitors actor)))
+    t))
+
 (defun notify-monitors (actor exit)
   (bt:with-lock-held ((actor-monitor-lock actor))
     (loop for ref in (actor-monitors actor)
