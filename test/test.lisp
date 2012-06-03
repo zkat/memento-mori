@@ -22,29 +22,31 @@
            (loop repeat 10 do
                 (spawn (lambda () "hi")
                        :linkp t))
-           (loop repeat 10 do
-                (let ((exit (receive)))
-                  (format t "~&Got an exit from linked actor ~a. Reason: ~s~%"
-                          (actor-exit-actor exit)
-                          (actor-exit-reason exit))))
+           (loop for exit =  (receive :timeout 1)
+              while exit
+              do (format t "~&Got an exit from linked actor ~a. Reason: ~s~%"
+                         (actor-exit-actor exit)
+                         (actor-exit-reason exit)))
            (format t "~&Done. Exiting master actor.~%"))
          :trap-exits-p t))
 
 (defun test-chain (n)
   (spawn (lambda ()
-           (chain n)
-           (format t "~&Chain has died with reason: ~s~%" (receive)))
+           (format t "~&Chain has died with reason: ~s~%" (chain n)))
          :trap-exits-p t))
 
 (defun chain (n)
   (cond ((= n 0)
-         (error "Goodbye, cruel world"))
+         #+nil(exit "wat")
+         (receive :timeout 2
+                  :on-timeout
+                  (lambda ()
+                    (error "I can't take this anymore."))))
         (t
-         (format t "~&Spawning new process and waiting.~%")
+         (format t "~&Spawning process #~a and waiting.~%" n)
          (spawn (lambda ()
                   (chain (1- n)))
-                :linkp t
-                :debugp t)
+                :linkp t)
          (receive))))
 
 (defun errors ()
