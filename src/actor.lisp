@@ -171,4 +171,5 @@
                    (signal-exit linked-actor exit)
                    (removef (actor-links linked-actor) actor)))
             (setf (actor-links actor) nil))
-          (notify-monitors actor exit))))))
+          (notify-monitors actor exit)
+          (when namep (unregister name)))))))
