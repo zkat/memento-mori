@@ -69,3 +69,10 @@
                     (lambda ()
                       (print "Timed out."))))
          :debugp t))
+
+(defun monitors ()
+  (spawn (lambda ()
+           (spawn (lambda ()
+                    (exit "all done"))
+                  :monitorp t)
+           (print (receive :timeout 10)))))
