@@ -10,8 +10,8 @@
 (defstruct actor
   (mailbox (hipocrite.mailbox:make-mailbox))
   ;; TODO
-  ;; (monitor-lock (bt:make-lock))
-  ;; monitors
+  (monitor-lock (bt:make-lock))
+  monitors
   name
   named-p
   links
@@ -80,6 +80,23 @@
 (defun kill (&optional (actor (current-actor)))
   (signal-exit actor (make-condition 'actor-exit :actor actor :reason :killed) t))
 
+(defstruct monitor-ref monitor monitored-actor)
+(defmethod print-object ((monitor-ref monitor-ref) stream)
+  (print-unreadable-object (monitor-ref stream :type t :identity t)
+    (format stream "Actor: ~a" (monitor-ref-monitored-actor monitor-ref))))
+
+(defun monitor (actor &optional (monitor (current-actor)))
+  (bt:with-lock-held ((actor-monitor-lock actor))
+    (let ((ref (make-monitor-ref :monitor monitor :monitored-actor actor)))
+      (push ref (actor-monitors actor))
+      ref)))
+
+(defun notify-monitors (actor exit)
+  (bt:with-lock-held ((actor-monitor-lock actor))
+    (loop for ref in (actor-monitors actor)
+       do (send (monitor-ref-monitor ref) (list :down ref actor exit)))
+    (setf (actor-monitors actor) nil)))
+
 (defun actor-alive-p (actor)
   (bt:thread-alive-p (actor-thread actor)))
 
@@ -92,9 +109,10 @@
                              :on-timeout on-timeout))
 
 (defun spawn (func &key
-              linkp trap-exits-p
+              linkp monitorp trap-exits-p
               (name nil namep) (debugp *debug-on-error-p*))
-  (let ((actor (make-actor :function func :trap-exits-p trap-exits-p)))
+  (let* ((actor (make-actor :function func :trap-exits-p trap-exits-p))
+         (monitor (when monitorp (monitor actor))))
     (setf (actor-thread actor)
           (bt:make-thread
            (make-actor-function actor func linkp namep name debugp)
@@ -103,7 +121,7 @@
             (cons '*current-actor* actor)
             (cons '*debug-on-error-p* *debug-on-error-p*)
             bt:*default-special-bindings*)))
-    actor))
+    (values actor monitor)))
 
 (defmacro without-interrupts (&body body)
   #+sbcl
@@ -152,4 +170,5 @@
                  do
                    (signal-exit linked-actor exit)
                    (removef (actor-links linked-actor) actor)))
-            (setf (actor-links actor) nil)))))))
+            (setf (actor-links actor) nil))
+          (notify-monitors actor exit))))))
