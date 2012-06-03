@@ -136,12 +136,9 @@
                          (actor-exit (exit) exit)))))
           (bt:with-recursive-lock-held (*link-lock*)
             (when (actor-links actor)
-              (let ((reason (make-condition 'actor-exit
-                                            :actor actor
-                                            :reason exit-reason)))
-                (loop for linked-actor in (actor-links actor)
-                   do (unlink actor linked-actor)
-                     (signal-exit linked-actor reason))))))))))
+              (loop for linked-actor in (actor-links actor)
+                 do (unlink actor linked-actor)
+                   (signal-exit linked-actor exit-reason)))))))))
 
 (defun actor-alive-p (actor)
   (bt:thread-alive-p (actor-thread actor)))
