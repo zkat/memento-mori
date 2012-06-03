@@ -62,8 +62,8 @@
 
 (defun link (actor &optional (actor2 (current-actor)))
   (bt:with-lock-held (*link-lock*)
-    (push actor (actor-links actor2))
-    (push actor2 (actor-links actor))))
+    (pushnew actor (actor-links actor2))
+    (pushnew actor2 (actor-links actor))))
 
 (defun unlink (actor &optional (actor2 (current-actor)))
   (bt:with-recursive-lock-held (*link-lock*)
