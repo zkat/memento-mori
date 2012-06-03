@@ -1,15 +1,15 @@
-(cl:defpackage #:hipocrite.gen-server
+(cl:defpackage #:hipocrite.server
   (:use #:cl #:hipocrite)
   (:export
    ;; API
    #:start
-   ;; gen-server callbacks
+   ;; server callbacks
    #:init
    #:handle-call
    #:handle-cast
    #:handle-info
    #:terminate))
-(cl:in-package #:hipocrite.gen-server)
+(cl:in-package #:hipocrite.server)
 
 (defgeneric init (driver))
 (defgeneric handle-call (driver request from))
