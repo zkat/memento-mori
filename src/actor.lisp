@@ -133,22 +133,6 @@
             bt:*default-special-bindings*)))
     (values actor monitor)))
 
-(defmacro without-interrupts (&body body)
-  #+sbcl
-  `(sb-sys:without-interrupts ,@body)
-  #+ccl
-  `(ccl:without-interrupts ,@body)
-  #-(or sbcl ccl)
-  (error "Unsupported"))
-
-(defmacro with-interrupts (&body body)
-  #+sbcl
-  `(sb-sys:allow-with-interrupts ,@body)
-  #+ccl
-  `(ccl:with-interrupts-enabled ,@body)
-  #-(or sbcl ccl)
-  (error "Unsupported"))
- 
 (defun make-actor-function (actor func linkp namep name debugp
                             &aux (parent (current-actor)))
   (lambda ()
