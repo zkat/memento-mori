@@ -1,4 +1,14 @@
-(in-package #:hipocrite)
+(cl:defpackage #:hipocrite.timer
+  (:use #:cl #:hipocrite)
+  (:export
+   #:call-after
+   #:call-interval
+   #:cancel-timer
+   #:send-after
+   #:send-interval
+   #:exit-after
+   #:kill-after))
+(cl:in-package #:hipocrite.timer)
 
 (defun call-after (time function)
   (let ((timer (trivial-timers:make-timer function)))
