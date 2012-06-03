@@ -45,3 +45,24 @@
                   (chain (1- n)))
                 :linkp t)
          (receive))))
+
+(defun errors ()
+  (spawn (lambda ()
+           (spawn (lambda ()
+                    (error "fail"))
+                  :linkp t
+                  :debugp t)
+           (print (receive)))
+         :trap-exits-p t
+         :debugp t)
+  (let ((*debug-on-error-p* t))
+    (spawn (lambda ()
+             (error "Blech")))))
+
+(defun timeout ()
+  (spawn (lambda ()
+           (receive :timeout 0.5
+                    :on-timeout
+                    (lambda ()
+                      (print "Timed out."))))
+         :debugp t))

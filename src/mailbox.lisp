@@ -33,13 +33,16 @@
   #+sbcl
   (sb-concurrency:send-message (mailbox-mbox mailbox) obj))
 
-(defun receive (mailbox &key timeout)
+(defun receive (mailbox &key timeout on-timeout)
   #-sbcl (error "TODO")
-  (sb-concurrency:receive-message
-   (mailbox-mbox mailbox)
-   :timeout (when timeout (/ timeout 1000)))
-  ;; todo
-  )
+  (multiple-value-bind (result completedp)
+      (sb-concurrency:receive-message
+       (mailbox-mbox mailbox)
+       :timeout timeout)
+    (if completedp
+        result
+        (when on-timeout
+          (funcall on-timeout)))))
 
 (defun receive-if (predicate mailbox &key timeout)
   #-sbcl (error "TODO")

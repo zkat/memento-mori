@@ -5,6 +5,7 @@
 (defvar +killswitch+ (gensym "BRUTAL-KILL"))
 (defvar *registered-actors* (make-hash-table))
 (defvar *registration-lock* (bt:make-lock))
+(defvar *debug-on-error-p* nil)
 
 (defstruct actor
   (mailbox (hipocrite.mailbox:make-mailbox))
@@ -43,16 +44,20 @@
 (defun current-actor ()
   *current-actor*)
 
-(defun spawn (func &key linkp trap-exits-p (name nil namep))
+(defun spawn (func &key
+              linkp trap-exits-p
+              (name nil namep) (debugp *debug-on-error-p*))
   (let ((actor (make-actor :function func :trap-exits-p trap-exits-p)))
     (when linkp
       (link actor (current-actor)))
     (setf (actor-thread actor)
           (bt:make-thread
-           (make-actor-function actor func linkp namep name)
+           (make-actor-function actor func linkp namep name debugp)
            :initial-bindings
-           (cons (cons '*current-actor* actor)
-                 bt:*default-special-bindings*)))
+           (list*
+            (cons '*current-actor* actor)
+            (cons '*debug-on-error-p* *debug-on-error-p*)
+            bt:*default-special-bindings*)))
     actor))
 
 (defun link (actor &optional (actor2 (current-actor)))
@@ -75,9 +80,9 @@
             (actor-exit-actor actor-exit)
             (actor-exit-reason actor-exit))))
 
-(defun signal-exit (actor exit)
+(defun signal-exit (actor exit &optional forcep)
   (bt:with-lock-held ((actor-exit-lock actor))
-    (if (and (actor-trap-exits-p actor) (not (eq +killswitch+ exit)))
+    (if (and (actor-trap-exits-p actor) (not forcep))
         (send actor exit)
         (bt:interrupt-thread (actor-thread actor)
                              (lambda ()
@@ -87,37 +92,53 @@
   (signal-exit actor (make-condition 'actor-exit :actor actor :reason reason)))
 
 (defun kill (&optional (actor (current-actor)))
-  (signal-exit actor +killswitch+))
+  (signal-exit actor (make-condition 'actor-exit :actor actor :reason :killed) t))
 
-(defun make-actor-function (actor func linkp namep name
-                            &aux (parent (current-actor)))
-  #-sbcl (error "TODO")
+(defmacro without-interrupts (&body body)
   #+sbcl
+  `(sb-sys:without-interrupts ,@body)
+  #+ccl
+  `(ccl:without-interrupts ,@body)
+  #-(or sbcl ccl)
+  (error "Unsupported"))
+
+(defmacro with-local-interrupts (&body body)
+  #+sbcl
+  `(sb-sys:with-local-interrupts ,@body)
+  #+ccl
+  `(ccl:with-interrupts-enabled ,@body)
+  #-(or sbcl ccl)
+  (error "Unsupported"))
+ 
+(defun make-actor-function (actor func linkp namep name debugp
+                            &aux (parent (current-actor)))
   (lambda ()
-    (sb-sys:without-interrupts
+    (without-interrupts
       (when linkp (link actor parent))
       (when namep (register name actor))
       (let (exit-reason)
         (unwind-protect
-             (handler-case 
-                 (sb-sys:with-local-interrupts
-                   (funcall func))
-               (actor-exit (exit)
-                 (setf exit-reason exit))
-               ;; Ehhh... Dunno what to do for abnormal exits.
-               #+nil
-               (error (c)
-                 (setf exit-reason
-                       (make-condition
-                        'actor-exit
-                        :actor actor
-                        :reason c))))
+             (setf exit-reason
+                   (block result
+                     (let ((*debugger-hook*
+                            (if debugp
+                                *debugger-hook*
+                                (lambda (e v)
+                                  (declare (ignore v))
+                                  (return-from result e)))))
+                       (handler-case
+                           (restart-case
+                               (cons :normal
+                                     (with-local-interrupts
+                                       (funcall func)))
+                             (kill-actor ()
+                               :killed))
+                         (actor-exit (exit) exit)))))
           (bt:with-recursive-lock-held (*link-lock*)
             (when (actor-links actor)
-              (let ((reason (or exit-reason
-                                (make-condition 'actor-exit
-                                                :actor actor
-                                                :reason :normal))))
+              (let ((reason (make-condition 'actor-exit
+                                            :actor actor
+                                            :reason exit-reason)))
                 (loop for linked-actor in (actor-links actor)
                    do (unlink actor linked-actor)
                      (signal-exit linked-actor reason))))))))))
@@ -128,14 +149,7 @@
 (defun send (actor message)
   (hipocrite.mailbox:send (actor-mailbox actor) message))
 
-(defun receive (&key timeout)
-  (hipocrite.mailbox:receive (actor-mailbox (current-actor)) :timeout timeout))
-
-(defun receive-if (predicate &key timeout)
-  (hipocrite.mailbox:receive-if predicate
-                                (actor-mailbox (current-actor))
-                                :timeout timeout))
-
-(defmacro receive-cond ((&key timeout) &body clauses)
-  `(hipocrite.mailbox:receive-cond ((current-actor) :timeout ,timeout)
-     ,@clauses))
+(defun receive (&key timeout on-timeout)
+  (hipocrite.mailbox:receive (actor-mailbox (current-actor))
+                             :timeout timeout
+                             :on-timeout on-timeout))
