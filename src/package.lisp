@@ -20,5 +20,4 @@
    #:actor-alive-p
    #:send
    #:receive
-   #:receive-if
    #:receive-cond))
