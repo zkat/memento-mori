@@ -90,13 +90,17 @@
              :monitor (call-msg-monitor msg)
              :values results)))))
 
-(defmacro defcall (name (server-var server-class)
+(defmacro defcall (name (server-var
+                         server-class
+                         &key
+                         (define-function-p t)
+                         (timeout nil timeoutp))
                    lambda-list &body body)
   (let ((args-var (gensym "ARGS")))
     `(progn
-       #+nil
-       (defun ,name (,server-var &rest args)
-         (call ,server-var ',name args ,@(when timeoutp `(:timeout ,timeout))))
+       ,@(when define-function-p
+               `((defun ,name (,server-var &rest args)
+                   (call ,server-var ',name args ,@(when timeoutp `(:timeout ,timeout))))))
        (defmethod on-call ((,server-var ,server-class)
                            (,(gensym "NAME") (eql ',name))
                            ,args-var)
@@ -110,14 +114,22 @@
 (defun cast (actor name args)
   (send actor (make-cast-msg :name name :args args)))
 
-(defmacro defcast (name (server-var server-class)
+(defmacro defcast (name (server-var
+                         server-class
+                         &key
+                         (define-function-p t)
+                         (timeout nil timeoutp))
                    lambda-list &body body)
   (let ((args-var (gensym "ARGS")))
-    `(defmethod on-cast ((,server-var ,server-class)
-                         (,(gensym "NAME") (eql ',name))
-                         ,args-var)
-       (flet ((,name ,lambda-list ,@body))
-         (apply #',name ,args-var)))))
+    `(progn
+       ,@(when define-function-p
+               `((defun ,name (,server-var &rest args)
+                   (cast ,server-var ',name args ,@(when timeoutp `(:timeout ,timeout))))))
+       (defmethod on-cast ((,server-var ,server-class)
+                           (,(gensym "NAME") (eql ',name))
+                           ,args-var)
+         (flet ((,name ,lambda-list ,@body))
+           (apply #',name ,args-var))))))
 
 (defun %handle-cast-msg (driver msg)
   (on-cast driver (cast-msg-name msg) (cast-msg-args msg)))
