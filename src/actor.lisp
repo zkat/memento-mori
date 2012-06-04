@@ -247,7 +247,7 @@
 (defun demonitor (ref)
   (let ((actor (monitor-monitored-actor ref)))
     (bt:with-lock-held ((actor-monitor-lock actor))
-      (removef ref (actor-monitors actor)))
+      (removef (actor-monitors actor) ref))
     t))
 
 (defstruct monitor-exit monitor actor type reason)
