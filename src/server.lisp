@@ -63,14 +63,13 @@
                                :caller (current-actor)
                                :name name
                                :args args))
-    ;; TODO - really need this selective receive for this.
     (receive-cond (reply :timeout timeout :on-timeout (error 'call-timeout))
       ((and (call-reply-p reply)
             (eq (call-reply-monitor reply) monitor))
        (demonitor monitor)
        (values-list (call-reply-values reply)))
-      ((and (down-signal-p reply)
-            (eq monitor (down-signal-monitor reply)))
+      ((and (monitor-exit-p reply)
+            (eq monitor (monitor-exit-monitor reply)))
        (error 'callee-down)))))
 
 (defun %handle-call-msg (driver msg)
