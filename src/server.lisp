@@ -35,9 +35,8 @@
        (loop for msg = (receive)
           do (cond ((call-msg-p msg)
                     (%handle-call-msg driver msg))
-                   #+nil
-                   ((cast-message-p msg)
-                    (handle-cast driver (cast-request msg)))
+                   ((cast-msg-p msg)
+                    (%handle-cast-msg driver msg))
                    (t
                     (on-direct-message driver msg))))
     (terminate driver (make-condition 'actor-exit
@@ -110,3 +109,15 @@
 (defstruct cast-msg name args)
 (defun cast (actor name args)
   (send actor (make-cast-msg :name name :args args)))
+
+(defmacro defcast (name (server-var server-class)
+                   lambda-list &body body)
+  (let ((args-var (gensym "ARGS")))
+    `(defmethod on-cast ((,server-var ,server-class)
+                         (,(gensym "NAME") (eql ',name))
+                         ,args-var)
+       (flet ((,name ,lambda-list ,@body))
+         (apply #',name ,args-var)))))
+
+(defun %handle-cast-msg (driver msg)
+  (on-cast driver (cast-msg-name msg) (cast-msg-args msg)))
