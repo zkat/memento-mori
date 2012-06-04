@@ -10,7 +10,7 @@
 
 (defclass arithmetic-server () ())
 
-(defcall + (server arithmetic-server) (&rest numbers)
+(defcall add-numbers (server arithmetic-server) (&rest numbers)
   (values (apply #'+ numbers) t))
 
 (defcast be-happy (server arithmetic-server) (about)
@@ -18,12 +18,12 @@
           (current-actor) about))
 
 (defun test-arithmetic-server ()
-  (let ((actor (start (make-instance 'arithmetic-server)
+  (let ((server (start (make-instance 'arithmetic-server)
                       :name 'test-server)))
     (spawn (lambda ()
-             (cast actor 'be-happy '(pie))
+             (be-happy server 'pie)
              (multiple-value-call
                  #'format t "~&Number: ~a, Second value: ~a.~%"
-                 (call actor '+ '(1 2 3 4 5)))
-             (kill 'die actor))
+                 (add-numbers server 1 2 3 4 5))
+             (kill 'die server))
            :debugp t)))
