@@ -1,4 +1,6 @@
-(in-package #:hipocrite)
+(cl:defpackage #:hipocrite.test
+  (:use #:cl #:alexandria #:hipocrite #:hipocrite.utils))
+(cl:in-package #:hipocrite.test)
 
 (defun test ()
   (let ((actor (spawn (lambda ()
