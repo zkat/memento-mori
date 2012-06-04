@@ -25,10 +25,10 @@
                 (spawn (lambda () "hi")
                        :linkp t))
            (loop for exit =  (receive :timeout 1)
-              while exit
-              do (format t "~&Got an exit from linked actor ~a. Reason: ~s~%"
-                         (actor-exit-actor exit)
-                         (actor-exit-reason exit)))
+              while (link-exit-p exit)
+              do (format t "~&Got an exit of type ~a. Reason: ~s~%"
+                         (link-exit-type exit)
+                         (link-exit-reason exit)))
            (format t "~&Done. Exiting master actor.~%"))
          :trap-exits-p t))
 
@@ -75,9 +75,14 @@
 (defun monitors ()
   (spawn (lambda ()
            (spawn (lambda ()
-                    (exit "all done"))
+                    (exit 'dying))
                   :monitorp t)
-           (print (receive :timeout 10)))))
+           (let ((exit (receive)))
+             (when (monitor-exit-p exit)
+               (format t "~&Monitor signaled exit: ~a. Exit type: ~a. Reason: ~s.~%"
+                       (monitor-exit-monitor exit)
+                       (monitor-exit-type exit)
+                       (monitor-exit-reason exit)))))))
 
 (defun test-selective-receive ()
   (spawn (lambda ()
