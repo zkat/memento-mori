@@ -19,9 +19,9 @@
 
 (defun test-arithmetic-server ()
   (let ((server (start (make-instance 'arithmetic-server)
-                      :name 'test-server)))
+                      :name :test-server)))
     (spawn (lambda ()
-             (be-happy server 'pie)
+             (be-happy server pi)
              (multiple-value-call
                  #'format t "~&Number: ~a, Second value: ~a.~%"
                  (add-numbers server 1 2 3 4 5))
