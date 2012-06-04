@@ -12,6 +12,10 @@
    #:receive-cond
    #:flush-messages
    ;; Exits
+   #:actor-exit
+   #:actor-kill
+   #:actor-completion
+   #:actor-error
    #:exit
    #:kill
    ;; Named actors
@@ -21,9 +25,18 @@
    ;; Linking
    #:link
    #:unlink
+   #:link-exit-p
+   #:link-exit-type
+   #:link-exit-reason
    ;; Monitoring
    #:monitor
-   #:demonitor))
+   #:demonitor
+   #:monitorp
+   #:monitor-monitored-actor
+   #:monitor-exit-p
+   #:monitor-exit-monitor
+   #:monitor-exit-type
+   #:monitor-exit-reason))
 (in-package #:hipocrite)
 
 ;;;
@@ -79,29 +92,27 @@
       (when namep (register name actor))
       (let (exit)
         (unwind-protect
-             (setf exit (run-actor-function actor func debugp))
+             (setf exit (run-actor-function func debugp))
           (notify-links actor exit)
           (notify-monitors actor exit)
           (when namep (unregister name)))))))
 
-(defun run-actor-function (actor func debugp)
-  (handler-bind ((actor-exit (lambda (exit)
+(defun run-actor-function (func debugp)
+  (handler-bind ((actor-stop (lambda (exit)
                                (return-from run-actor-function exit)))
                  (error (lambda (e)
                           (when debugp (invoke-debugger e))
                           (return-from run-actor-function
-                            (make-condition 'actor-exit
-                                            :actor actor
-                                            :type :error
-                                            :info e)))))
-    (apply #'make-condition
-           'actor-exit
-           :actor actor
-           (restart-case
-               (list :type :normal
-                     :info (with-interrupts (funcall func)))
-             (kill-actor ()
-               (list :type :kill :info :killed))))))
+                            (make-condition 'actor-error
+                                            :reason e)))))
+    (restart-case
+        (make-condition 'actor-completion
+                        :reason
+                        (with-interrupts (funcall func)))
+
+      (kill-actor ()
+        (make-condition 'actor-kill
+                        :reason "Killed in restart")))))
 
 ;;;
 ;;; Messaging
@@ -127,37 +138,35 @@
 ;;;
 ;;; Exits
 ;;;
-(define-condition actor-exit (condition)
-  ((actor :initarg :actor :reader actor-exit-actor)
-   (type :initarg :type :reader actor-exit-type)
-   (info :initarg :info :reader actor-exit-info)))
 
-(defmethod print-object ((actor-exit actor-exit) stream)
-  (print-unreadable-object (actor-exit stream :type t :identity t)
-    (format stream "[Actor: ~a; Type: ~s]"
-            (actor-exit-actor actor-exit)
-            (actor-exit-type actor-exit))))
+(define-condition actor-stop (condition)
+  ((reason :initarg :reason :reader actor-stop-reason)))
 
-(defun signal-exit (actor exit &optional forcep)
+(define-condition actor-exit (actor-stop) ())
+(define-condition actor-kill (actor-stop) ())
+(define-condition actor-completion (actor-stop) ())
+(define-condition actor-error (actor-stop) ())
+
+(defmethod print-object ((actor-stop actor-stop) stream)
+  (print-unreadable-object (actor-stop stream :type t :identity t)
+    (format stream "reason: ~s" (actor-stop-reason actor-stop))))
+
+(defun signal-exit (actor exit)
   (if (and (bt:with-lock-held ((actor-exit-lock actor))
              (actor-trap-exits-p actor))
-           (not forcep))
-      (send actor exit)
+           (not (typep exit 'actor-kill)))
+      (send-exit-message actor exit)
       (bt:interrupt-thread (actor-thread actor)
                            (lambda ()
                              (signal exit)))))
 
 (defun exit (reason &optional (actor (current-actor)))
   (signal-exit actor (make-condition 'actor-exit
-                                     :actor actor
-                                     :type :exit
-                                     :info reason)))
+                                     :reason reason)))
 
-(defun kill (&optional (actor (current-actor)))
-  (signal-exit actor (make-condition 'actor-exit
-                                     :actor actor
-                                     :type :kill
-                                     :info :killed) t))
+(defun kill (reason &optional (actor (current-actor)))
+  (signal-exit actor (make-condition 'actor-kill
+                                     :reason reason)))
 
 ;;;
 ;;; Registration
@@ -180,14 +189,21 @@
     (remhash name *registered-actors*)))
 
 (defun maybe-format-actor-name (actor stream)
-    (bt:with-lock-held (*registration-lock*)
-      (when (actor-named-p actor)
-        (format stream "~s" (actor-name actor)))))
+  (bt:with-lock-held (*registration-lock*)
+    (when (actor-named-p actor)
+      (format stream "~s" (actor-name actor)))))
 
 ;;;
 ;;; Linking
 ;;;
 (defvar *link-lock* (bt:make-lock))
+
+(defstruct link-exit linked-actor type reason)
+(defmethod print-object ((link-exit link-exit) stream)
+  (print-unreadable-object (link-exit stream :type t :identity t)
+    (format stream "[~A ~S]"
+            (link-exit-type link-exit)
+            (link-exit-reason link-exit))))
 
 (defun link (actor &optional (actor2 (current-actor)))
   (bt:with-lock-held (*link-lock*)
@@ -198,6 +214,12 @@
   (bt:with-recursive-lock-held (*link-lock*)
     (removef (actor-links actor) actor2)
     (removef (actor-links actor2) actor)))
+
+(defun send-exit-message (actor exit)
+  (send actor (make-link-exit
+               :linked-actor (current-actor)
+               :type (type-of exit)
+               :reason (actor-stop-reason exit))))
 
 (defun notify-links (actor exit)
   (bt:with-lock-held (*link-lock*)
@@ -211,27 +233,36 @@
 ;;;
 ;;; Monitors
 ;;;
-(defstruct monitor-ref monitor monitored-actor)
-(defmethod print-object ((monitor-ref monitor-ref) stream)
-  (print-unreadable-object (monitor-ref stream :type t :identity t)
-    (format stream "Actor: ~a" (monitor-ref-monitored-actor monitor-ref))))
+(defstruct (monitor (:predicate monitorp)) observer monitored-actor)
+(defmethod print-object ((monitor monitor) stream)
+  (print-unreadable-object (monitor stream :type t :identity t)
+    (format stream "Actor: ~a" (monitor-monitored-actor monitor))))
 
-(defun monitor (actor &optional (monitor (current-actor)))
+(defun monitor (actor &optional (observer (current-actor)))
   (bt:with-lock-held ((actor-monitor-lock actor))
-    (let ((ref (make-monitor-ref :monitor monitor :monitored-actor actor)))
+    (let ((ref (make-monitor :observer observer :monitored-actor actor)))
       (push ref (actor-monitors actor))
       ref)))
 
 (defun demonitor (ref)
-  (let ((actor (monitor-ref-monitored-actor ref)))
+  (let ((actor (monitor-monitored-actor ref)))
     (bt:with-lock-held ((actor-monitor-lock actor))
       (removef ref (actor-monitors actor)))
     t))
 
-(defstruct monitored-actor-down actor monitor)
+(defstruct monitor-exit monitor actor type reason)
+(defmethod print-object ((monitor-exit monitor-exit) stream)
+  (print-unreadable-object (monitor-exit stream :type t :identity t)
+    (format stream "[~A ~S]"
+            (monitor-exit-type monitor-exit)
+            (monitor-exit-reason monitor-exit))))
+
 (defun notify-monitors (actor exit)
   (bt:with-lock-held ((actor-monitor-lock actor))
-    (loop for ref in (actor-monitors actor)
-       ;; TODO - I don't know wtf I really want to return here.
-       do (send (monitor-ref-monitor ref) (list :down ref actor exit)))
+    (loop for monitor in (actor-monitors actor)
+       do (send (monitor-observer monitor)
+                (make-monitor-exit :monitor monitor
+                                   :actor actor
+                                   :type (type-of exit)
+                                   :reason (actor-stop-reason exit))))
     (setf (actor-monitors actor) nil)))
