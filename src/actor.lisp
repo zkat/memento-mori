@@ -191,7 +191,7 @@
 (defun maybe-format-actor-name (actor stream)
   (bt:with-lock-held (*registration-lock*)
     (when (actor-named-p actor)
-      (format stream "~s" (actor-name actor)))))
+      (format stream "~s " (actor-name actor)))))
 
 ;;;
 ;;; Linking
