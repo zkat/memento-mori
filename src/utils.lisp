@@ -58,5 +58,5 @@
                        (lambda ()
                          (return-from over-here (values nil nil))))))
            (trivial-timers:schedule-timer timer expires)
-           (unwind-protect (timeout-body)
+           (unwind-protect (values (timeout-body) t)
              (trivial-timers:unschedule-timer timer)))))))
