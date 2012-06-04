@@ -61,7 +61,7 @@
   (print-unreadable-object (actor stream :type t :identity t)
     (maybe-format-actor-name actor stream)
     (format stream "[~a msgs]" (hipocrite.mailbox:mailbox-count
-                           (actor-mailbox actor)))))
+                                (actor-mailbox actor)))))
 
 (defun current-actor ()
   *current-actor*)
