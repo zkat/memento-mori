@@ -13,5 +13,5 @@
             ((:file "utils")
              (:file "mailbox")
              (:file "actor")
-             (:file "timer")))))
-
+             (:file "timer")
+             (:file "server")))))
