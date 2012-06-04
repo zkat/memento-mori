@@ -18,11 +18,16 @@
 ;;;
 ;;; Server actor
 ;;;
-(defgeneric init (driver))
-(defgeneric on-call (driver name args))
-(defgeneric on-cast (driver name args))
-(defgeneric on-direct-message (driver message))
-(defgeneric terminate (driver reason))
+(defgeneric init (driver)
+  (:method ((driver t)) t))
+(defgeneric on-call (driver name args)
+  (:method ((driver t) (name t) (args t)) t))
+(defgeneric on-cast (driver name args)
+  (:method ((driver t) (name t) (args t)) t))
+(defgeneric on-direct-message (driver message)
+  (:method ((driver t) (message t)) t))
+(defgeneric terminate (driver reason)
+  (:method ((driver t) (reason t)) t))
 
 (defun enter-loop (driver)
   (init driver)
