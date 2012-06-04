@@ -45,12 +45,15 @@
                                       :reason :normal))))
 
 (defun start (driver &key linkp monitorp trap-exits-p
+              (name nil namep)
               (debugp *debug-on-error-p*))
-  (spawn (lambda () (enter-loop driver))
+  (apply #'spawn
+         (lambda () (enter-loop driver))
          :linkp linkp
          :monitorp monitorp
          :trap-exits-p trap-exits-p
-         :debugp debugp))
+         :debugp debugp
+         (when namep (list :name name))))
 
 ;;;
 ;;; Call
