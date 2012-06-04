@@ -100,6 +100,8 @@
     `(progn
        ,@(when define-function-p
                `((defun ,name (,server-var &rest args)
+                   ;; TODO - instead of &rest args, parse the lambda-list so we get nice minibuffer
+                   ;;        hints for these functions.
                    (call ,server-var ',name args ,@(when timeoutp `(:timeout ,timeout))))))
        (defmethod on-call ((,server-var ,server-class)
                            (,(gensym "NAME") (eql ',name))
@@ -133,3 +135,28 @@
 
 (defun %handle-cast-msg (driver msg)
   (on-cast driver (cast-msg-name msg) (cast-msg-args msg)))
+
+;;;
+;;; Utils
+;;;
+
+;; TODO - actually use this
+#+nil
+(defmacro defhandler (callback-name call-name
+                      name
+                      (server-var
+                       server-class
+                       &key
+                       (define-function-p t)
+                       (timeout nil timeoutp))
+                      lambda-list &body body)
+  (let ((args-var (gensym "ARGS")))
+    `(progn
+       ,@(when define-function-p
+               `((defun ,name (,server-var &rest args)
+                   (,call-name ,server-var ',name args ,@(when timeoutp `(:timeout ,timeout))))))
+       (defmethod ,callback-name ((,server-var ,server-class)
+                                  (,(gensym "NAME") (eql ',name))
+                                  ,args-var)
+         (flet ((,name ,lambda-list ,@body))
+           (apply #',name ,args-var)))))  )
