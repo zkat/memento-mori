@@ -18,6 +18,7 @@
    #:actor-error
    #:exit
    #:kill
+   #:actor-break
    ;; Named actors
    #:find-actor
    #:register
@@ -171,6 +172,10 @@
 (defun kill (reason &optional (actor (current-actor)))
   (signal-exit actor (make-condition 'actor-kill
                                      :reason reason)))
+
+(defun actor-break (actor &optional string &rest args)
+  (bt:interrupt-thread (actor-thread actor)
+                       (apply #'curry #'break string args)))
 
 ;;;
 ;;; Registration
