@@ -6,11 +6,11 @@
    #:enter-server-loop
    #:exit-server-loop
    ;; server protocol
-   #:init
+   #:on-init
    #:on-call
    #:on-cast
    #:on-direct-message
-   #:terminate
+   #:on-terminate
    ;; Convenience
    #:defcall
    #:defcast))
@@ -20,7 +20,7 @@
 ;;; Server actor
 ;;;
 
-(defgeneric init (driver)
+(defgeneric on-init (driver)
   (:method ((driver t)) t))
 (defgeneric on-call (driver name args)
   (:method ((driver t) (name t) (args t))
@@ -34,17 +34,17 @@
   (:method ((driver t) (message t))
     (error "No ON-CAST method defined for ~s with message ~s."
            driver message)))
-(defgeneric terminate (driver reason)
+(defgeneric on-terminate (driver reason)
   (:method ((driver t) (reason t)) t))
 
 (defvar +server-loop-exit+ (gensym "SERVER-LOOP-EXIT"))
 (defun exit-server-loop ()
-  (throw +server-loop-exit+ t))
+  (throw +server-loop-exit+ nil))
 
 (defun enter-server-loop (driver)
   (unwind-protect
        (catch +server-loop-exit+
-         (init driver)
+         (on-init driver)
          (loop for msg = (receive)
             do (cond ((call-request-p msg)
                       (%handle-call-request driver msg))
@@ -52,9 +52,8 @@
                       (%handle-cast-msg driver msg))
                      (t
                       (on-direct-message driver msg)))))
-    (terminate driver (make-condition 'actor-exit
-                                      :actor (current-actor)
-                                      :reason :normal))))
+    (on-terminate driver (make-condition 'actor-exit
+                                         :reason :normal))))
 
 (defun start (driver &key linkp monitorp trap-exits-p
               (name nil namep)
