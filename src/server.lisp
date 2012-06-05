@@ -1,5 +1,6 @@
 (cl:defpackage #:hipocrite.server
   (:use #:cl #:hipocrite)
+  (:nicknames #:hip-srv)
   (:export
    ;; API
    #:start
