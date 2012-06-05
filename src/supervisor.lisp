@@ -1,5 +1,6 @@
 (cl:defpackage #:hipocrite.supervisor
-  (:use #:cl #:hipocrite.utils #:hipocrite))
+  (:use #:cl #:hipocrite.utils #:hipocrite)
+  (:nicknames #:hip-sup))
 (cl:in-package #:hipocrite.supervisor)
 
 (defun count-children (supervisor)

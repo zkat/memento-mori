@@ -1,5 +1,6 @@
 (defpackage #:hipocrite
   (:use #:cl #:alexandria #:hipocrite.utils)
+  (:nicknames #:hip)
   (:export
    ;; Core
    #:*debug-on-error-p*

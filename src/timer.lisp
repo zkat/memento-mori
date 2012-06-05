@@ -1,5 +1,6 @@
 (cl:defpackage #:hipocrite.timer
   (:use #:cl #:hipocrite)
+  (:nicknames #:hip-timer)
   (:export
    #:call-after
    #:call-interval
