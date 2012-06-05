@@ -112,8 +112,7 @@
                         (with-interrupts (funcall func)))
 
       (kill-actor ()
-        (make-condition 'actor-kill
-                        :reason "Killed in restart")))))
+        (make-condition 'actor-kill)))))
 
 ;;;
 ;;; Messaging
@@ -144,7 +143,7 @@
   ((reason :initarg :reason :reader actor-stop-reason)))
 
 (define-condition actor-exit (actor-stop) ())
-(define-condition actor-kill (actor-stop) ())
+(define-condition actor-kill (actor-stop) ((reason :initform :killed)))
 (define-condition actor-completion (actor-stop) ())
 (define-condition actor-error (actor-stop) ())
 
@@ -169,9 +168,8 @@
   (signal-exit actor (make-condition 'actor-exit
                                      :reason reason)))
 
-(defun kill (reason &optional (actor (current-actor)))
-  (signal-exit actor (make-condition 'actor-kill
-                                     :reason reason)))
+(defun kill (&optional (actor (current-actor)))
+  (signal-exit actor (make-condition 'actor-kill)))
 
 (defun actor-break (actor &optional string &rest args)
   (bt:interrupt-thread (actor-thread actor)
