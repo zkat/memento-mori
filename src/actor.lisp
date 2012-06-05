@@ -5,6 +5,9 @@
    #:*debug-on-error-p*
    #:current-actor
    #:actor-alive-p
+   #:trap-exits-p
+   #:enable-trap-exits
+   #:disable-trap-exits
    #:spawn
    ;; Messaging
    #:send
@@ -54,7 +57,7 @@
   named-p
   links
   (exit-lock (bt:make-lock))
-  trap-exits-p
+  trap-exits-setting
   thread
   function)
 
@@ -70,10 +73,25 @@
 (defun actor-alive-p (actor)
   (bt:thread-alive-p (actor-thread actor)))
 
+(defun %trap-exits-p (actor)
+  (bt:with-lock-held ((actor-exit-lock actor))
+    (actor-trap-exits-setting actor)))
+
+(defun trap-exits-p (&aux (actor (current-actor)))
+  (%trap-exits-p actor))
+
+(defun enable-trap-exits (&aux (actor (current-actor)))
+  (bt:with-lock-held ((actor-exit-lock actor))
+    (setf (actor-trap-exits-setting actor) t)))
+
+(defun disable-trap-exits (&aux (actor (current-actor)))
+  (bt:with-lock-held ((actor-exit-lock actor))
+    (setf (actor-trap-exits-setting actor) nil)))
+
 (defun spawn (func &key
               linkp monitorp trap-exits-p
               (name nil namep) (debugp *debug-on-error-p*))
-  (let* ((actor (make-actor :function func :trap-exits-p trap-exits-p))
+  (let* ((actor (make-actor :function func :trap-exits-setting trap-exits-p))
          (monitor (when monitorp (monitor actor))))
     (setf (actor-thread actor)
           (bt:make-thread
@@ -154,9 +172,8 @@
 (defun signal-exit (actor exit)
   (cond ((eq actor (current-actor))
          (signal exit))
-        ((and (bt:with-lock-held ((actor-exit-lock actor))
-             (actor-trap-exits-p actor))
-           (not (typep exit 'actor-kill)))
+        ((and (%trap-exits-p actor)
+              (not (typep exit 'actor-kill)))
          (send-exit-message actor exit))
         (t
          (bt:interrupt-thread (actor-thread actor)
