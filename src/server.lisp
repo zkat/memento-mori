@@ -3,7 +3,8 @@
   (:export
    ;; API
    #:start
-   #:enter-loop
+   #:enter-server-loop
+   #:exit-server-loop
    ;; server protocol
    #:init
    #:on-call
@@ -36,16 +37,21 @@
 (defgeneric terminate (driver reason)
   (:method ((driver t) (reason t)) t))
 
-(defun enter-loop (driver)
-  (init driver)
+(defvar +server-loop-exit+ (gensym "SERVER-LOOP-EXIT"))
+(defun exit-server-loop ()
+  (throw +server-loop-exit+ t))
+
+(defun enter-server-loop (driver)
   (unwind-protect
-       (loop for msg = (receive)
-          do (cond ((call-msg-p msg)
-                    (%handle-call-msg driver msg))
-                   ((cast-msg-p msg)
-                    (%handle-cast-msg driver msg))
-                   (t
-                    (on-direct-message driver msg))))
+       (catch +server-loop-exit+
+         (init driver)
+         (loop for msg = (receive)
+            do (cond ((call-msg-p msg)
+                      (%handle-call-msg driver msg))
+                     ((cast-msg-p msg)
+                      (%handle-cast-msg driver msg))
+                     (t
+                      (on-direct-message driver msg)))))
     (terminate driver (make-condition 'actor-exit
                                       :actor (current-actor)
                                       :reason :normal))))
@@ -54,7 +60,7 @@
               (name nil namep)
               (debugp *debug-on-error-p*))
   (apply #'spawn
-         (lambda () (enter-loop driver))
+         (lambda () (enter-server-loop driver))
          :linkp linkp
          :monitorp monitorp
          :trap-exits-p trap-exits-p
