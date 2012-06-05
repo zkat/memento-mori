@@ -11,10 +11,12 @@
 
 (defclass arithmetic-server () ())
 
-(defcall add-numbers (server arithmetic-server) (&rest numbers)
+(defcall add-numbers (&rest numbers)
+    (server arithmetic-server)
   (values (apply #'+ numbers) t))
 
-(defcast be-happy (server arithmetic-server) (about)
+(defcast be-happy (about)
+    (server arithmetic-server)
   (format t "~&I, the arithmetic-server (@~a), am SO HAPPY about ~s!~%"
           (current-actor) about))
 
