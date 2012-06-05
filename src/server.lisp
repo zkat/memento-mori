@@ -62,11 +62,11 @@
     (on-terminate driver (make-condition 'actor-exit
                                          :reason :normal))))
 
-(defun start (driver &key linkp monitorp trap-exits-p
+(defun start (driver-function &key linkp monitorp trap-exits-p
               (name nil namep)
               (debugp *debug-on-error-p*))
   (apply #'spawn
-         (lambda () (enter-server-loop driver))
+         (lambda () (enter-server-loop (funcall driver-function)))
          :linkp linkp
          :monitorp monitorp
          :trap-exits-p trap-exits-p
