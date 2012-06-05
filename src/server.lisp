@@ -97,11 +97,10 @@
                   (on-call driver
                            (call-msg-name msg)
                            (call-msg-args msg)))))
-    (when results
-      (send (call-msg-caller msg)
-            (make-call-reply
-             :monitor (call-msg-monitor msg)
-             :values results)))))
+    (send (call-msg-caller msg)
+          (make-call-reply
+           :monitor (call-msg-monitor msg)
+           :values results))))
 
 (defmacro defcall (name (server-var
                          server-class
