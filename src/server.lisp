@@ -11,8 +11,14 @@
    #:on-cast
    #:on-direct-message
    #:on-terminate
-   ;; Convenience
+   ;; Call
+   #:call
+   #:reply
+   #:multiple-value-call
+   #:defer-call-reply
    #:defcall
+   ;; Cast
+   #:cast
    #:defcast))
 (cl:in-package #:hipocrite.server)
 
@@ -69,37 +75,57 @@
 ;;;
 ;;; Call
 ;;;
-(defstruct call-reply monitor values)
-(defstruct call-request name args caller monitor)
+(defstruct call-reply
+  (request nil :read-only t)
+  (values nil :read-only t))
+(defstruct call-request
+  (name nil :read-only t)
+  (args nil :read-only t)
+  (caller nil :read-only t)
+  (monitor nil :read-only t))
 
 (define-condition call-error (error) ())
 (define-condition callee-down (call-error) ())
 (define-condition call-timeout (call-error) ())
 
+(defvar +defer-call-reply+ (gensym "DEFER-CALL-REPLY"))
+(defun defer-call-reply ()
+  (throw +defer-call-reply+ nil))
+
 (defun call (actor name args &key (timeout 5))
-  (let ((monitor (monitor actor)))
-    (send actor (make-call-request :monitor monitor
-                                   :caller (current-actor)
-                                   :name name
-                                   :args args))
+  (let ((request (make-call-request :monitor (monitor actor)
+                                    :caller (current-actor)
+                                    :name name
+                                    :args args)))
+    (send actor request)
     (receive-cond (reply :timeout timeout :on-timeout (error 'call-timeout))
       ((and (call-reply-p reply)
-            (eq (call-reply-monitor reply) monitor))
-       (demonitor monitor)
+            (eq (call-reply-request reply) request))
+       (demonitor (call-request-monitor request))
        (values-list (call-reply-values reply)))
       ((and (monitor-exit-p reply)
-            (eq monitor (monitor-exit-monitor reply)))
+            (eq (call-request-monitor request)
+                (monitor-exit-monitor reply)))
        (error 'callee-down)))))
 
-(defun %handle-call-request (driver msg)
-  (let ((results (multiple-value-list
-                  (on-call driver
-                           (call-request-name msg)
-                           (call-request-args msg)))))
-    (send (call-request-caller msg)
+(defun reply (request &rest values)
+  (send (call-request-caller request)
+        (make-call-reply
+         :request request
+         :values values)))
+
+(defmacro multiple-value-reply (request multiple-value-form)
+  `(multiple-value-call 'reply ,request ,multiple-value-form))
+
+(defun %handle-call-request (driver req)
+  (catch +defer-call-reply+
+    (send (call-request-caller req)
           (make-call-reply
-           :monitor (call-request-monitor msg)
-           :values results))))
+           :request req
+           :values (multiple-value-list
+                    (on-call driver
+                             (call-request-name req)
+                             (call-request-args req)))))))
 
 (defmacro defcall (name (server-var
                          server-class
