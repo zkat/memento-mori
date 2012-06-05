@@ -46,8 +46,8 @@
        (catch +server-loop-exit+
          (init driver)
          (loop for msg = (receive)
-            do (cond ((call-msg-p msg)
-                      (%handle-call-msg driver msg))
+            do (cond ((call-request-p msg)
+                      (%handle-call-request driver msg))
                      ((cast-msg-p msg)
                       (%handle-cast-msg driver msg))
                      (t
@@ -71,7 +71,7 @@
 ;;; Call
 ;;;
 (defstruct call-reply monitor values)
-(defstruct call-msg name args caller monitor)
+(defstruct call-request name args caller monitor)
 
 (define-condition call-error (error) ())
 (define-condition callee-down (call-error) ())
@@ -79,10 +79,10 @@
 
 (defun call (actor name args &key (timeout 5))
   (let ((monitor (monitor actor)))
-    (send actor (make-call-msg :monitor monitor
-                               :caller (current-actor)
-                               :name name
-                               :args args))
+    (send actor (make-call-request :monitor monitor
+                                   :caller (current-actor)
+                                   :name name
+                                   :args args))
     (receive-cond (reply :timeout timeout :on-timeout (error 'call-timeout))
       ((and (call-reply-p reply)
             (eq (call-reply-monitor reply) monitor))
@@ -92,14 +92,14 @@
             (eq monitor (monitor-exit-monitor reply)))
        (error 'callee-down)))))
 
-(defun %handle-call-msg (driver msg)
+(defun %handle-call-request (driver msg)
   (let ((results (multiple-value-list
                   (on-call driver
-                           (call-msg-name msg)
-                           (call-msg-args msg)))))
-    (send (call-msg-caller msg)
+                           (call-request-name msg)
+                           (call-request-args msg)))))
+    (send (call-request-caller msg)
           (make-call-reply
-           :monitor (call-msg-monitor msg)
+           :monitor (call-request-monitor msg)
            :values results))))
 
 (defmacro defcall (name (server-var
