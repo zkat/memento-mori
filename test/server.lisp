@@ -6,6 +6,8 @@
 (cl:in-package #:hipocrite.test.server)
 
 (defclass arithmetic-server () ())
+(defun make-arithmetic-server ()
+  (make-instance 'arithmetic-server))
 
 (defcall add-numbers (&rest numbers)
     (server arithmetic-server :server-form (hip:find-actor :test-server))
@@ -20,7 +22,7 @@
   (format t "~&Got a direct, non-call/cast message: ~s~%" message))
 
 (defun test-arithmetic-server ()
-  (let ((server (hip-srv:start (make-instance 'arithmetic-server)
+  (let ((server (hip-srv:start #'make-arithmetic-server
                                :name :test-server
                                :debugp t)))
     (hip:spawn (lambda ()
