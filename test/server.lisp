@@ -33,5 +33,5 @@
              (multiple-value-call
                  #'format t "~&Number: ~a, Second value: ~a.~%"
                  (add-numbers 1 2 3 4 5))
-             (kill 'die server))
+             (kill server))
            :debugp t)))
