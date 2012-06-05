@@ -128,20 +128,25 @@
                              (call-request-name req)
                              (call-request-args req)))))))
 
-(defmacro defcall (name (server-var
-                         server-class
-                         &key
-                         request-var
-                         (define-function-p t)
-                         (timeout nil timeoutp))
-                   lambda-list &body body)
+(defmacro defcall (name lambda-list
+                   (server-var
+                    server-class
+                    &key
+                    server-form
+                    request-var
+                    (define-function-p t)
+                    (timeout nil timeoutp)) &body body)
   (let ((args-var (gensym "ARGS")))
     `(progn
        ,@(when define-function-p
-               `((defun ,name (,server-var &rest args)
+               `((defun ,name ,(if server-form
+                                   '(&rest args)
+                                   `(,server-var &rest args))
                    ;; TODO - instead of &rest args, parse the lambda-list so we get nice minibuffer
                    ;;        hints for these functions.
-                   (call ,server-var ',name args ,@(when timeoutp `(:timeout ,timeout))))))
+                   (call ,(or server-form server-var)
+                         ',name args
+                         ,@(when timeoutp `(:timeout ,timeout))))))
        (defmethod on-call ((,server-var ,server-class)
                            (,(or request-var (gensym "REQUEST")) t)
                            (,(gensym "NAME") (eql ',name))
@@ -156,17 +161,20 @@
 (defun cast (actor name args)
   (send actor (make-cast-msg :name name :args args)))
 
-(defmacro defcast (name (server-var
-                         server-class
-                         &key
-                         (define-function-p t)
-                         (timeout nil timeoutp))
-                   lambda-list &body body)
+(defmacro defcast (name lambda-list
+                   (server-var
+                    server-class
+                    &key
+                    server-form
+                    (define-function-p t))
+                   &body body)
   (let ((args-var (gensym "ARGS")))
     `(progn
        ,@(when define-function-p
-               `((defun ,name (,server-var &rest args)
-                   (cast ,server-var ',name args ,@(when timeoutp `(:timeout ,timeout))))))
+               `((defun ,name ,(if server-form
+                                   '(&rest args)
+                                   `(,server-var &rest args))
+                   (cast ,(or server-form server-var) ',name args))))
        (defmethod on-cast ((,server-var ,server-class)
                            (,(gensym "NAME") (eql ',name))
                            ,args-var)
