@@ -12,7 +12,7 @@
 (defclass arithmetic-server () ())
 
 (defcall add-numbers (&rest numbers)
-    (server arithmetic-server)
+    (server arithmetic-server :server-form (find-actor :test-server))
   (values (apply #'+ numbers) t))
 
 (defcast be-happy (about)
@@ -32,6 +32,6 @@
              (send server "This is a regular message.")
              (multiple-value-call
                  #'format t "~&Number: ~a, Second value: ~a.~%"
-                 (add-numbers server 1 2 3 4 5))
+                 (add-numbers 1 2 3 4 5))
              (kill 'die server))
            :debugp t)))
