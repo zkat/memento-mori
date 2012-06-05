@@ -18,14 +18,21 @@
 ;;;
 ;;; Server actor
 ;;;
+
 (defgeneric init (driver)
   (:method ((driver t)) t))
 (defgeneric on-call (driver name args)
-  (:method ((driver t) (name t) (args t)) t))
+  (:method ((driver t) (name t) (args t))
+    (error "No ON-CALL method defined for ~s with name ~s"
+           driver name)))
 (defgeneric on-cast (driver name args)
-  (:method ((driver t) (name t) (args t)) t))
+  (:method ((driver t) (name t) (args t))
+    (error "No ON-CAST method defined for ~s with name ~s."
+           driver name)))
 (defgeneric on-direct-message (driver message)
-  (:method ((driver t) (message t)) t))
+  (:method ((driver t) (message t))
+    (error "No ON-CAST method defined for ~s with message ~s."
+           driver message)))
 (defgeneric terminate (driver reason)
   (:method ((driver t) (reason t)) t))
 
