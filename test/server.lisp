@@ -5,9 +5,7 @@
                 #:defcast))
 (cl:in-package #:hipocrite.test.server)
 
-(defclass arithmetic-server () ())
-(defun make-arithmetic-server ()
-  (make-instance 'arithmetic-server))
+(defstruct arithmetic-server)
 
 (defcall add-numbers (&rest numbers)
     (server arithmetic-server :server-form (hip:find-actor :test-server))
