@@ -28,8 +28,8 @@
 
 (defgeneric on-init (driver)
   (:method ((driver t)) t))
-(defgeneric on-call (driver name args)
-  (:method ((driver t) (name t) (args t))
+(defgeneric on-call (driver request name args)
+  (:method ((driver t) (request t) (name t) (args t))
     (error "No ON-CALL method defined for ~s with name ~s"
            driver name)))
 (defgeneric on-cast (driver name args)
@@ -124,12 +124,14 @@
            :request req
            :values (multiple-value-list
                     (on-call driver
+                             req
                              (call-request-name req)
                              (call-request-args req)))))))
 
 (defmacro defcall (name (server-var
                          server-class
                          &key
+                         request-var
                          (define-function-p t)
                          (timeout nil timeoutp))
                    lambda-list &body body)
@@ -141,6 +143,7 @@
                    ;;        hints for these functions.
                    (call ,server-var ',name args ,@(when timeoutp `(:timeout ,timeout))))))
        (defmethod on-call ((,server-var ,server-class)
+                           (,(or request-var (gensym "REQUEST")) t)
                            (,(gensym "NAME") (eql ',name))
                            ,args-var)
          (flet ((,name ,lambda-list ,@body))
