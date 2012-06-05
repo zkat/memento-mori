@@ -152,13 +152,17 @@
     (format stream "reason: ~s" (actor-stop-reason actor-stop))))
 
 (defun signal-exit (actor exit)
-  (if (and (bt:with-lock-held ((actor-exit-lock actor))
+  (cond ((eq actor (current-actor))
+         (signal exit))
+        ((and (bt:with-lock-held ((actor-exit-lock actor))
              (actor-trap-exits-p actor))
            (not (typep exit 'actor-kill)))
-      (send-exit-message actor exit)
-      (bt:interrupt-thread (actor-thread actor)
-                           (lambda ()
-                             (signal exit)))))
+         (send-exit-message actor exit))
+        (t
+         (bt:interrupt-thread (actor-thread actor)
+                              (lambda ()
+                                (without-interrupts
+                                  (signal exit)))))))
 
 (defun exit (reason &optional (actor (current-actor)))
   (signal-exit actor (make-condition 'actor-exit
