@@ -23,7 +23,8 @@
 
 (defun test-arithmetic-server ()
   (let ((server (start (make-instance 'arithmetic-server)
-                      :name :test-server)))
+                      :name :test-server
+                      :debugp t)))
     (spawn (lambda ()
              (be-happy server pi)
              (send server "This is a regular message.")
