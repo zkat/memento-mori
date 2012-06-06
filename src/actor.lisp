@@ -100,6 +100,7 @@
     (setf (actor-thread actor)
           (bt:make-thread
            (make-actor-function actor func linkp namep name debugp)
+           :name (format nil "Hipocrite actor thread for ~s" actor)
            :initial-bindings
            (list*
             (cons '*current-actor* actor)
