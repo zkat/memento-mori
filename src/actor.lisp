@@ -30,7 +30,9 @@
    ;; Linking
    #:link
    #:unlink
+   #:link-exit
    #:link-exit-p
+   #:link-exit-linked-actor
    #:link-exit-type
    #:link-exit-reason
    ;; Monitoring
@@ -38,6 +40,7 @@
    #:demonitor
    #:monitorp
    #:monitor-monitored-actor
+   #:monitor-exit
    #:monitor-exit-p
    #:monitor-exit-monitor
    #:monitor-exit-type
