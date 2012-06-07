@@ -13,6 +13,7 @@
    #:on-direct-message
    #:on-shutdown
    ;; Call
+   #:*call-timeout*
    #:call
    #:reply
    #:multiple-value-call
@@ -89,7 +90,9 @@
 (defun defer-call-reply ()
   (throw +defer-call-reply+ nil))
 
-(defun call (actor name args &key (timeout 5))
+(defparameter *call-timeout* 5)
+
+(defun call (actor name args &key (timeout *call-timeout*))
   (let ((request (make-call-request :monitor (monitor actor)
                                     :caller (current-actor)
                                     :name name
