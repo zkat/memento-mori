@@ -10,7 +10,7 @@
    #:on-init
    #:on-call
    #:on-cast
-   #:on-direct-message
+   #:on-message
    #:on-shutdown
    ;; Call
    #:*call-timeout*
@@ -19,6 +19,8 @@
    #:multiple-value-call
    #:defer-call-reply
    #:defcall
+   #:callee-down
+   #:call-timeout
    ;; Cast
    #:cast
    #:defcast))
@@ -38,7 +40,7 @@
   (:method ((driver t) (name t) (args t))
     (error "No ON-CAST method defined for ~s with name ~s."
            driver name)))
-(defgeneric on-direct-message (driver message)
+(defgeneric on-message (driver message)
   (:method ((driver t) (message t))
     (error "No ON-CAST method defined for ~s with message ~s."
            driver message)))
@@ -49,6 +51,7 @@
   (signal (make-condition 'actor-shutdown :reason reason)))
 
 (defun enter-server-loop (driver)
+  (assert (current-actor) () "ENTER-SERVER-LOOP must be called within the scope of an actor.")
   (handler-bind ((actor-shutdown (curry #'on-shutdown driver)))
     (on-init driver)
     (loop for msg = (receive)
@@ -133,7 +136,7 @@
                     server-class
                     &key
                     server-form
-                    request-var
+                    request
                     (define-function-p t)
                     (timeout nil timeoutp)) &body body)
   (let ((args-var (gensym "ARGS")))
@@ -148,7 +151,7 @@
                          ',name args
                          ,@(when timeoutp `(:timeout ,timeout))))))
        (defmethod on-call ((,server-var ,server-class)
-                           (,(or request-var (gensym "REQUEST")) t)
+                           (,(or request (gensym "REQUEST")) t)
                            (,(gensym "NAME") (eql ',name))
                            ,args-var)
          (flet ((,name ,lambda-list ,@body))
