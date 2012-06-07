@@ -5,22 +5,29 @@
                 #:defcast))
 (cl:in-package #:hipocrite.test.server)
 
-(defstruct arithmetic-server)
+(defstruct example-server)
 
 (defcall add-numbers (&rest numbers)
-    (server arithmetic-server :server-form (hip:find-actor :test-server))
+    (server example-server :server-form (hip:find-actor :test-server))
   (values (apply #'+ numbers) t))
 
 (defcast be-happy (about)
-    (server arithmetic-server)
-  (format t "~&I, the arithmetic-server (@~a), am SO HAPPY about ~s!~%"
+    (server example-server)
+  (format t "~&I, the example-server (@~a), am SO HAPPY about ~s!~%"
           (hip:current-actor) about))
 
-(defmethod hip-srv:on-direct-message ((server arithmetic-server) message)
+(defcast please-die (why)
+    (server example-server)
+  (hip-srv:exit-server-loop why))
+
+(defmethod hip-srv:on-direct-message ((server example-server) message)
   (format t "~&Got a direct, non-call/cast message: ~s~%" message))
 
-(defun test-arithmetic-server ()
-  (let ((server (hip-srv:start #'make-arithmetic-server
+(defmethod hip-srv:on-shutdown ((server example-server) reason)
+  (format t "~&Cleanly shutting down ~a. Reason: ~a~%" server reason))
+
+(defun test-example-server ()
+  (let ((server (hip-srv:start #'make-example-server
                                :name :test-server
                                :debugp t)))
     (hip:spawn (lambda ()
@@ -29,5 +36,5 @@
                  (multiple-value-call
                      #'format t "~&Number: ~a, Second value: ~a.~%"
                      (add-numbers 1 2 3 4 5))
-                 (hip:kill server))
+                 (please-die server "I'm done with you."))
                :debugp t)))
