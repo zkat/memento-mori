@@ -25,13 +25,13 @@
   (format t "~&Unreachable code. This won't print.~%"))
 
 (defcall deferred-reply (value)
-    (server example-server :request-var request)
+    (server example-server :request request)
   (setf (example-server-deferred-value server) value
         (example-server-deferred-request server) request)
   (hip-srv:defer-call-reply)
   (format t "~&Unreachable code. This won't print.~%"))
 
-(defmethod hip-srv:on-direct-message ((server example-server) message)
+(defmethod hip-srv:on-message ((server example-server) message)
   (format t "~&Got a direct, non-call/cast message: ~s~%" message)
   (when-let ((request (example-server-deferred-request server))
              (value (example-server-deferred-value server)))
