@@ -1,5 +1,5 @@
 (cl:defpackage #:hipocrite.server
-  (:use #:cl #:hipocrite)
+  (:use #:cl #:alexandria #:hipocrite)
   (:nicknames #:hip-srv)
   (:export
    ;; API
@@ -11,7 +11,7 @@
    #:on-call
    #:on-cast
    #:on-direct-message
-   #:on-terminate
+   #:on-shutdown
    ;; Call
    #:call
    #:reply
@@ -41,26 +41,22 @@
   (:method ((driver t) (message t))
     (error "No ON-CAST method defined for ~s with message ~s."
            driver message)))
-(defgeneric on-terminate (driver reason)
+(defgeneric on-shutdown (driver reason)
   (:method ((driver t) (reason t)) t))
 
-(defvar +server-loop-exit+ (gensym "SERVER-LOOP-EXIT"))
-(defun exit-server-loop ()
-  (throw +server-loop-exit+ nil))
+(defun exit-server-loop (&optional (reason 'exit-event-loop))
+  (signal (make-condition 'actor-shutdown :reason reason)))
 
 (defun enter-server-loop (driver)
-  (unwind-protect
-       (catch +server-loop-exit+
-         (on-init driver)
-         (loop for msg = (receive)
-            do (cond ((call-request-p msg)
-                      (%handle-call-request driver msg))
-                     ((cast-msg-p msg)
-                      (%handle-cast-msg driver msg))
-                     (t
-                      (on-direct-message driver msg)))))
-    (on-terminate driver (make-condition 'actor-exit
-                                         :reason :normal))))
+  (handler-bind ((actor-shutdown (curry #'on-shutdown driver)))
+    (on-init driver)
+    (loop for msg = (receive)
+       do (cond ((call-request-p msg)
+                 (%handle-call-request driver msg))
+                ((cast-msg-p msg)
+                 (%handle-cast-msg driver msg))
+                (t
+                 (on-direct-message driver msg))))))
 
 (defun start (driver-function &key linkp monitorp trap-exits-p
               (name nil namep)
