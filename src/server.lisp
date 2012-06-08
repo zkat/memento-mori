@@ -159,7 +159,8 @@
                            (,(gensym "NAME") (eql ',name))
                            ,args-var)
          (flet ((,name ,lambda-list ,@body))
-           (apply #',name ,args-var))))))
+           (apply #',name ,args-var)))
+       ',name)))
 
 ;;;
 ;;; Cast
@@ -186,7 +187,8 @@
                            (,(gensym "NAME") (eql ',name))
                            ,args-var)
          (flet ((,name ,lambda-list ,@body))
-           (apply #',name ,args-var))))))
+           (apply #',name ,args-var)))
+       ',name)))
 
 (defun %handle-cast-msg (driver msg)
   (on-cast driver (cast-msg-name msg) (cast-msg-args msg)))
