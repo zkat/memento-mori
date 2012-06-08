@@ -16,7 +16,7 @@
    #:*call-timeout*
    #:call
    #:reply
-   #:multiple-value-call
+   #:multiple-value-reply
    #:defer-call-reply
    #:defcall
    #:callee-down
