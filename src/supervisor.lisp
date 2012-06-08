@@ -4,17 +4,13 @@
   (:nicknames #:hip-sup)
   (:export
    #:start-supervisor
-   #:make-child-spec
-   #:one-for-one))
+   #:make-child-spec))
 (cl:in-package #:hipocrite.supervisor)
 
-'one-for-one
-
 (defstruct supervisor
-  restart-strategy
   max-restarts
   max-restart-time
-  recent-restarts
+  restarts
   (children (make-hash-table)))
 (defstruct supervisor-child
   child-spec
@@ -35,8 +31,7 @@
   shutdown-timeout
   supervisorp)
 
-(defun start-supervisor (restart-strategy
-                         &key
+(defun start-supervisor (&key
                            linkp monitorp name debugp
                            (max-restarts 5) (max-restart-time 10)
                            initial-child-specs)
@@ -48,7 +43,6 @@
                         (make-supervisor-child :child-spec child-spec)))
             initial-child-specs)
        (make-supervisor
-        :restart-strategy restart-strategy
         :max-restarts max-restarts
         :max-restart-time max-restart-time
         :children table)))
