@@ -1,6 +1,6 @@
-(cl:defpackage #:hibernate.test.supervisor
+(cl:defpackage #:hipocrite.test.supervisor
   (:use #:cl #:alexandria))
-(cl:in-package #:hibernate.test.supervisor)
+(cl:in-package #:hipocrite.test.supervisor)
 
 (defun test-sup ()
   (hip-sup:start-supervisor
