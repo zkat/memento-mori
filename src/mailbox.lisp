@@ -1,12 +1,12 @@
-(cl:defpackage #:hipocrite.mailbox
-  (:use #:cl #:hipocrite.utils)
+(cl:defpackage #:memento-mori.mailbox
+  (:use #:cl #:memento-mori.utils)
   (:export #:make-mailbox
            #:mailbox-count
            #:send
            #:receive-timeout
            #:receive
            #:receive-cond))
-(in-package #:hipocrite.mailbox)
+(in-package #:memento-mori.mailbox)
 
 ;; Mailbox
 (defstruct mailbox

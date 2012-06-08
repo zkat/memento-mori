@@ -1,8 +1,8 @@
-;;;; hipocrite.asd
+;;;; memento-mori.asd
 
-(asdf:defsystem #:hipocrite
+(asdf:defsystem #:memento-mori
   :serial t
-  :description "Actor library inspired by Erlang's concurrency primitives."
+  :description "Robustness through actors."
   :author "Kat Marchán <kzm@sykosomatic.org>"
   :license "MIT"
   :depends-on (alexandria bordeaux-threads trivial-timers)

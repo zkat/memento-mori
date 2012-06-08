@@ -1,6 +1,6 @@
-(cl:defpackage #:hipocrite.test
-  (:use #:cl #:alexandria #:hipocrite #:hipocrite.utils))
-(cl:in-package #:hipocrite.test)
+(cl:defpackage #:memento-mori.test
+  (:use #:cl #:alexandria #:memento-mori #:memento-mori.utils))
+(cl:in-package #:memento-mori.test)
 
 (defun test ()
   (let ((actor (spawn (lambda ()
@@ -24,7 +24,7 @@
            (loop repeat 10 do
                 (spawn (lambda () "hi")
                        :linkp t))
-           (loop for exit =  (receive :timeout 1)
+           (loop for exit = (receive :timeout 1 :on-timeout (constantly nil))
               while (link-exit-p exit)
               do (format t "~&Got an exit of type ~a. Reason: ~s~%"
                          (link-exit-type exit)
