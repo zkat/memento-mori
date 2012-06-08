@@ -42,7 +42,7 @@
           (example-server-deferred-request server) nil)))
 
 (defmethod hip-srv:on-shutdown ((server example-server) reason)
-  (format t "~&Cleanly shutting down ~a. Reason: ~a~%" server reason))
+  (format t "~&~a is shutting down because of ~a.~%" server reason))
 
 (defun test-example-server ()
   (let ((server (hip-srv:start #'make-example-server
