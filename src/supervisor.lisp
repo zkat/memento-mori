@@ -58,13 +58,29 @@
                           (%start-child (supervisor-child-child-spec child))))
                   (supervisor-children supervisor)))
 
+(defun add-restart (supervisor)
+  (let ((now (now)))
+    (setf (supervisor-restarts supervisor)
+          (cons now
+                (loop
+                   for restart in (supervisor-restarts supervisor)
+                   while (in-period-p
+                          restart
+                          now
+                          (supervisor-max-restart-time supervisor))
+                   collect restart)))))
+
+(defun in-period-p (from to period)
+  (< (- to from) period))
+
 (defmethod hip-srv:on-message ((sup supervisor) (exit link-exit))
   (when-let (child (find (link-exit-linked-actor exit)
                          (hash-table-values (supervisor-children sup))
                          :key #'supervisor-child-actor))
-    (format t "~&Supervisor child died: ~S. Restarting.~%" child)
-    (setf (supervisor-child-actor child)
-          (%start-child (supervisor-child-child-spec child)))))
+    (if (> (length (add-restart sup)) (supervisor-max-restarts sup))
+        (signal 'actor-shutdown :reason "Too many restarts.")
+        (setf (supervisor-child-actor child)
+              (%start-child (supervisor-child-child-spec child))))))
 
 (defcall count-children ()
     (supervisor supervisor)
@@ -94,3 +110,6 @@
     (supervisor supervisor)
   ;; TODO
   child)
+
+(defun now ()
+  (/ (get-internal-real-time) internal-time-units-per-second))
