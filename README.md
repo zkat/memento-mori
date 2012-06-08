@@ -23,7 +23,7 @@ CL-USER> (hip-srv:defcall this-is-synchronous (this-is-an-argument)
            'a-return-value)
 
 THIS-IS-SYNCHRONOUS
-CL-USER> (LET ((SErver (hip-srv:start #'make-example-server)))
+CL-USER> (let ((server (hip-srv:start #'make-example-server)))
            (hip:spawn (lambda ()
                         (format t "~&Caller: ~s.~%" (hip:current-actor))
                         (print
