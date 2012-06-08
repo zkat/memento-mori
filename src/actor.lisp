@@ -123,11 +123,15 @@
           (notify-monitors actor exit)
           (when namep (unregister name)))))))
 
+(defvar *debugger-lock* (bt:make-lock))
+
 (defun run-actor-function (func debugp)
   (handler-bind ((actor-exit (lambda (exit)
                                (return-from run-actor-function exit)))
                  (error (lambda (e)
-                          (when debugp (invoke-debugger e))
+                          (when debugp
+                            (bt:with-lock-held (*debugger-lock*)
+                              (invoke-debugger e)))
                           (return-from run-actor-function
                             (make-condition 'actor-error
                                             :reason e)))))
