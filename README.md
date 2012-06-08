@@ -14,30 +14,25 @@ CL-USER> (let ((actor (hip:spawn (lambda () (print (hip:receive))))))
            (hip:send actor "Hello, world!"))
 
 "Hello, world!" T
-CL-USER> (hip:spawn (lambda ()
-                      (loop for i below 10
-                           do (hip:spawn (lambda (&aux (i i))
-                                           (sleep (random 5 (make-random-state t))) i)
-                                         :linkp t))
-                      (loop for exit = (hip:receive :timeout 8)
-                         while (hip:link-exit-p exit)
-                         do (format t "~&Got an exit of type ~a. Reason: ~s~%"
-                                    (hip:link-exit-type exit)
-                                    (hip:link-exit-reason exit)))
-                      (format t "~&Done. Exiting master actor.~%"))
-                    :trap-exits-p t)
-Got an exit of type ACTOR-COMPLETION. Reason: 3
-Got an exit of type ACTOR-COMPLETION. Reason: 5
-Got an exit of type ACTOR-COMPLETION. Reason: 6
-Got an exit of type ACTOR-COMPLETION. Reason: 1
-Got an exit of type ACTOR-COMPLETION. Reason: 9
-Got an exit of type ACTOR-COMPLETION. Reason: 4
-Got an exit of type ACTOR-COMPLETION. Reason: 8
-Got an exit of type ACTOR-COMPLETION. Reason: 2
-Got an exit of type ACTOR-COMPLETION. Reason: 7
-Got an exit of type ACTOR-COMPLETION. Reason: 10
-Done. Exiting master actor.
-#<ACTOR [0 msgs] #x302000D08C4D>
+CL-USER> (defstruct example-server)
+EXAMPLE-SERVER
+CL-USER> (hip-srv:defcall print-current-actor (and-this)
+             (server example-server)
+           (format t "~&Server actor: ~s. Argument: ~s~%"
+                   (hip:current-actor) and-this)
+           'a-return-value)
+
+PRINT-CURRENT-ACTOR
+CL-USER> (let ((server (hip-srv:start #'make-example-server)))
+           (hip:spawn (lambda ()
+                        (format t "~&Caller: ~s.~%" (hip:current-actor))
+                        (print
+                         (print-current-actor server 'an-argument))
+                        (hip:kill server))))
+Caller: #<ACTOR [0 msgs] #x302000EA248D>.
+Server actor: #<ACTOR [0 msgs] #x302000EA369D>. Argument: AN-ARGUMENT
+
+A-RETURN-VALUE #<ACTOR [0 msgs] #x302000EA248D>
 NIL
 ```
 
