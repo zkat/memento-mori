@@ -1,11 +1,11 @@
-(cl:defpackage #:hipocrite.supervisor
-  (:use #:cl #:alexandria #:hipocrite.utils #:hipocrite)
-  (:import-from #:hipocrite.server #:defcall #:defcast)
-  (:nicknames #:hip-sup)
+(cl:defpackage #:memento-mori.supervisor
+  (:use #:cl #:alexandria #:memento-mori.utils #:memento-mori)
+  (:import-from #:memento-mori.server #:defcall #:defcast)
+  (:nicknames #:mori-sup)
   (:export
    #:start-supervisor
    #:make-child-spec))
-(cl:in-package #:hipocrite.supervisor)
+(cl:in-package #:memento-mori.supervisor)
 
 (defstruct supervisor
   max-restarts
@@ -35,7 +35,7 @@
                            linkp monitorp name debugp
                            (max-restarts 5) (max-restart-time 10)
                            initial-child-specs)
-  (hip-srv:start
+  (mori-srv:start
    (lambda ()
      (let ((table (make-hash-table)))
        (map nil (lambda (child-spec)
@@ -52,7 +52,7 @@
 ;;;
 ;;; Server callbacks
 ;;;
-(defmethod hip-srv:on-init ((supervisor supervisor))
+(defmethod mori-srv:on-init ((supervisor supervisor))
   (maphash-values (lambda (child)
                     (setf (supervisor-child-actor child)
                           (%start-child (supervisor-child-child-spec child))))
@@ -73,7 +73,7 @@
 (defun in-period-p (from to period)
   (< (- to from) period))
 
-(defmethod hip-srv:on-message ((sup supervisor) (exit link-exit))
+(defmethod mori-srv:on-message ((sup supervisor) (exit link-exit))
   (when-let (child (find (link-exit-linked-actor exit)
                          (hash-table-values (supervisor-children sup))
                          :key #'supervisor-child-actor))

@@ -1,56 +1,56 @@
-(cl:defpackage #:hipocrite.test.server
+(cl:defpackage #:memento-mori.test.server
   (:use #:cl #:alexandria)
-  (:import-from #:hipocrite.server
+  (:import-from #:memento-mori.server
                 #:defcall
                 #:defcast))
-(cl:in-package #:hipocrite.test.server)
+(cl:in-package #:memento-mori.test.server)
 
 (defstruct example-server deferred-request deferred-value)
 
-(defmethod hip-srv:on-init ((server example-server))
+(defmethod mori-srv:on-init ((server example-server))
   (format t "~&Initializing ~a~%" server))
 
 (defcall add-numbers (&rest numbers)
-    (server example-server :server-form (hip:find-actor :test-server))
+    (server example-server :server-form (mori:find-actor :test-server))
   (values (apply #'+ numbers) t))
 
 (defcast be-happy (about)
     (server example-server)
   (format t "~&I, ~a (@~a), am SO HAPPY about ~s!~%"
-          server (hip:current-actor) about))
+          server (mori:current-actor) about))
 
 (defcast please-die (why)
     (server example-server)
-  (hip-srv:exit-server-loop why)
+  (mori-srv:exit-server-loop why)
   (format t "~&Unreachable code. This won't print.~%"))
 
 (defcall deferred-reply (value)
     (server example-server :request request)
   (setf (example-server-deferred-value server) value
         (example-server-deferred-request server) request)
-  (hip-srv:defer-call-reply)
+  (mori-srv:defer-call-reply)
   (format t "~&Unreachable code. This won't print.~%"))
 
-(defmethod hip-srv:on-message ((server example-server) message)
+(defmethod mori-srv:on-message ((server example-server) message)
   (format t "~&Got a direct, non-call/cast message: ~s~%" message)
   (when-let ((request (example-server-deferred-request server))
              (value (example-server-deferred-value server)))
     (format t "~&Have something to reply to. Request: ~a, Value: ~a.~%"
             request value)
-    (hip-srv:reply request value 1 2 3)
+    (mori-srv:reply request value 1 2 3)
     (setf (example-server-deferred-value server) nil
           (example-server-deferred-request server) nil)))
 
-(defmethod hip-srv:on-shutdown ((server example-server) reason)
+(defmethod mori-srv:on-shutdown ((server example-server) reason)
   (format t "~&~a is shutting down because of ~a.~%" server reason))
 
 (defun test-example-server ()
-  (let ((server (hip-srv:start #'make-example-server
+  (let ((server (mori-srv:start #'make-example-server
                                :name :test-server
                                :debugp t)))
-    (hip:spawn (lambda ()
-                 (hip-timer:call-after 2 (lambda ()
-                                           (hip:send server "This is a regular message.")))
+    (mori:spawn (lambda ()
+                 (mori-timer:call-after 2 (lambda ()
+                                           (mori:send server "This is a regular message.")))
                  (be-happy server pi)
                  (multiple-value-call
                      #'format t "~&Number: ~a, Second value: ~a.~%"

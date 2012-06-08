@@ -1,4 +1,4 @@
-(cl:defpackage #:hipocrite.utils
+(cl:defpackage #:memento-mori.utils
   (:use #:cl #:alexandria)
   (:export
    ;; Queues
@@ -12,7 +12,7 @@
    #:with-interrupts
    #:timeout
    #:with-timeout))
-(cl:in-package #:hipocrite.utils)
+(cl:in-package #:memento-mori.utils)
 
 (defun make-queue () (cons nil nil))
 

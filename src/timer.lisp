@@ -1,6 +1,6 @@
-(cl:defpackage #:hipocrite.timer
-  (:use #:cl #:hipocrite)
-  (:nicknames #:hip-timer)
+(cl:defpackage #:memento-mori.timer
+  (:use #:cl #:memento-mori)
+  (:nicknames #:mori-timer)
   (:export
    #:call-after
    #:call-interval
@@ -9,7 +9,7 @@
    #:send-interval
    #:exit-after
    #:kill-after))
-(cl:in-package #:hipocrite.timer)
+(cl:in-package #:memento-mori.timer)
 
 (defun call-after (time function)
   (let ((timer (trivial-timers:make-timer function)))

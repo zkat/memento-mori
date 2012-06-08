@@ -1,7 +1,7 @@
-(defpackage #:hipocrite
-  (:use #:cl #:alexandria #:hipocrite.utils)
-  (:import-from #:hipocrite.mailbox #:receive-timeout)
-  (:nicknames #:hip)
+(defpackage #:memento-mori
+  (:use #:cl #:alexandria #:memento-mori.utils)
+  (:import-from #:memento-mori.mailbox #:receive-timeout)
+  (:nicknames #:mori)
   (:export
    ;; Core
    #:*debug-on-error-p*
@@ -47,7 +47,7 @@
    #:monitor-exit-monitor
    #:monitor-exit-type
    #:monitor-exit-reason))
-(in-package #:hipocrite)
+(in-package #:memento-mori)
 
 ;;;
 ;;; Actors
@@ -56,7 +56,7 @@
 (defvar *current-actor* nil)
 
 (defstruct actor
-  (mailbox (hipocrite.mailbox:make-mailbox))
+  (mailbox (memento-mori.mailbox:make-mailbox))
   (monitor-lock (bt:make-lock))
   monitors
   name
@@ -70,7 +70,7 @@
 (defmethod print-object ((actor actor) stream)
   (print-unreadable-object (actor stream :type t :identity t)
     (maybe-format-actor-name actor stream)
-    (format stream "[~a msgs]" (hipocrite.mailbox:mailbox-count
+    (format stream "[~a msgs]" (memento-mori.mailbox:mailbox-count
                                 (actor-mailbox actor)))))
 
 (defun current-actor ()
@@ -102,7 +102,7 @@
     (setf (actor-thread actor)
           (bt:make-thread
            (make-actor-function actor func linkp namep name debugp)
-           :name (format nil "Hipocrite actor thread for ~s" actor)
+           :name (format nil "Mori actor thread for ~s" actor)
            :initial-bindings
            (list*
             (cons '*current-actor* actor)
@@ -143,15 +143,15 @@
 ;;; Messaging
 ;;;
 (defun send (actor message)
-  (hipocrite.mailbox:send (actor-mailbox actor) message))
+  (memento-mori.mailbox:send (actor-mailbox actor) message))
 
 (defun receive (&key timeout on-timeout)
-  (hipocrite.mailbox:receive (actor-mailbox (current-actor))
+  (memento-mori.mailbox:receive (actor-mailbox (current-actor))
                              :timeout timeout
                              :on-timeout on-timeout))
 
 (defmacro receive-cond ((value-var &key timeout on-timeout) &body clauses)
-  `(hipocrite.mailbox:receive-cond (,value-var (actor-mailbox (current-actor))
+  `(memento-mori.mailbox:receive-cond (,value-var (actor-mailbox (current-actor))
                                                :timeout ,timeout
                                                :on-timeout ,on-timeout)
      ,@clauses))

@@ -1,6 +1,6 @@
-(cl:defpackage #:hipocrite.server
-  (:use #:cl #:alexandria #:hipocrite)
-  (:nicknames #:hip-srv)
+(cl:defpackage #:memento-mori.server
+  (:use #:cl #:alexandria #:memento-mori)
+  (:nicknames #:mori-srv)
   (:export
    ;; API
    #:start
@@ -24,7 +24,7 @@
    ;; Cast
    #:cast
    #:defcast))
-(cl:in-package #:hipocrite.server)
+(cl:in-package #:memento-mori.server)
 
 ;;;
 ;;; Server actor
