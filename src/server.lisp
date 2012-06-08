@@ -50,17 +50,21 @@
 (defun exit-server-loop (&optional (reason 'exit-event-loop))
   (signal (make-condition 'actor-shutdown :reason reason)))
 
-(defun enter-server-loop (driver)
+(defun enter-server-loop (driver &aux reason)
   (assert (current-actor) () "ENTER-SERVER-LOOP must be called within the scope of an actor.")
-  (handler-bind ((actor-shutdown (curry #'on-shutdown driver)))
+  (handler-bind ((actor-exit (lambda (e) (setf reason e)))
+                 (error (lambda (e)
+                          (setf reason (make-condition 'actor-error :reason e)))))
     (on-init driver)
-    (loop for msg = (receive)
-       do (cond ((call-request-p msg)
-                 (%handle-call-request driver msg))
-                ((cast-msg-p msg)
-                 (%handle-cast-msg driver msg))
-                (t
-                 (on-direct-message driver msg))))))
+    (unwind-protect
+         (loop for msg = (receive)
+            do (cond ((call-request-p msg)
+                      (%handle-call-request driver msg))
+                     ((cast-msg-p msg)
+                      (%handle-cast-msg driver msg))
+                     (t
+                      (on-message driver msg))))
+      (on-shutdown driver (or reason (make-condition 'actor-exit :reason 'unknown))))))
 
 (defun start (driver-function &key linkp monitorp trap-exits-p
               (name nil namep)
