@@ -42,7 +42,7 @@
            driver name)))
 (defgeneric on-message (driver message)
   (:method ((driver t) (message t))
-    (error "No ON-CAST method defined for ~s with message ~s."
+    (error "No ON-MESSAGE method defined for ~s with message ~s."
            driver message)))
 (defgeneric on-shutdown (driver reason)
   (:method ((driver t) (reason t)) t))
