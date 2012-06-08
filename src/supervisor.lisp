@@ -4,7 +4,7 @@
   (:nicknames #:hip-sup)
   (:export
    #:start-supervisor
-   #:make-child-spe
+   #:make-child-spec
    #:one-for-one))
 (cl:in-package #:hipocrite.supervisor)
 
@@ -64,7 +64,7 @@
                           (%start-child (supervisor-child-child-spec child))))
                   (supervisor-children supervisor)))
 
-(defmethod hip-srv:on-direct-message ((sup supervisor) (exit link-exit))
+(defmethod hip-srv:on-message ((sup supervisor) (exit link-exit))
   (when-let (child (find (link-exit-linked-actor exit)
                          (hash-table-values (supervisor-children sup))
                          :key #'supervisor-child-actor))
