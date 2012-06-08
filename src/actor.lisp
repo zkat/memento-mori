@@ -1,5 +1,6 @@
 (defpackage #:hipocrite
   (:use #:cl #:alexandria #:hipocrite.utils)
+  (:import-from #:hipocrite.mailbox #:receive-timeout)
   (:nicknames #:hip)
   (:export
    ;; Core
@@ -156,8 +157,8 @@
      ,@clauses))
 
 (defun flush-messages ()
-  (unless (nth-value 1 (receive :timeout 0))
-    (flush-messages)))
+  (receive :timeout 0 :on-timeout (lambda () (return-from flush-messages t)))
+  (flush-messages))
 
 ;;;
 ;;; Exits

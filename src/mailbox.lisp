@@ -3,6 +3,7 @@
   (:export #:make-mailbox
            #:mailbox-count
            #:send
+           #:receive-timeout
            #:receive
            #:receive-cond))
 (in-package #:hipocrite.mailbox)
@@ -27,17 +28,16 @@
     (bt:condition-notify (mailbox-cond-var mailbox)))
   t)
 
+(define-condition receive-timeout (error) ())
 (defun receive (mailbox &key timeout on-timeout)
   (if timeout
       (multiple-value-bind (value completedp)
           (with-timeout timeout
             (do-receive mailbox))
-        (if completedp
-            (values value t)
-            (values (when on-timeout
-                      (funcall on-timeout))
-                  nil)))
-      (values (do-receive mailbox) t)))
+        (cond (completedp value)
+              (on-timeout (funcall on-timeout))
+              (t (error 'receive-timeout))))
+      (do-receive mailbox)))
 
 ;; Oy vey, how to do this while still being interrupt-safe? :\
 (defun do-receive (mailbox)
@@ -48,16 +48,16 @@
        do (return-from do-receive (dequeue (mailbox-queue mailbox))))))
 
 (defun receive-choices (mailbox choices &key timeout on-timeout)
+  ;; TODO - This m-v-l/values-list bullshit is too much. Please don't do it.
   (if timeout
       (multiple-value-bind (value completedp)
           (with-timeout timeout
-            (do-selective-receive mailbox choices))
-        (if completedp
-            (values value t)
-            (values (when on-timeout
-                      (funcall on-timeout))
-                    nil)))
-      (values (do-selective-receive mailbox choices))))
+            (multiple-value-list
+             (do-selective-receive mailbox choices)))
+        (cond (completedp (values-list value))
+              (on-timeout (funcall on-timeout))
+              (t (error 'receive-timeout))))
+      (do-selective-receive mailbox choices)))
 
 (defun do-selective-receive (mailbox choices)
   ;; TODO - Ugly and stupid, but I just need a working prototype for now.
@@ -78,7 +78,7 @@
          if (null got-value-p)
          do (bt:condition-wait (mailbox-cond-var mailbox) (mailbox-lock mailbox))
          else
-         do (return (funcall callback value))))))
+         do (return-from do-selective-receive (funcall callback value))))))
 
 (defmacro receive-cond ((value-var mailbox &key timeout on-timeout) &body clauses)
   `(receive-choices ,mailbox
