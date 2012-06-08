@@ -37,7 +37,7 @@
              (value (example-server-deferred-value server)))
     (format t "~&Have something to reply to. Request: ~a, Value: ~a.~%"
             request value)
-    (hip-srv:reply request value)
+    (hip-srv:reply request value 1 2 3)
     (setf (example-server-deferred-value server) nil
           (example-server-deferred-request server) nil)))
 
@@ -56,6 +56,6 @@
                      #'format t "~&Number: ~a, Second value: ~a.~%"
                      (add-numbers 1 2 3 4 5))
                  (format t "Deferred reply: ~a"
-                         (deferred-reply server 'block-me))
+                         (multiple-value-list (deferred-reply server 'block-me)))
                  (please-die server "I'm done with you."))
                :debugp t)))
