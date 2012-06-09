@@ -24,7 +24,6 @@
    ;; Exits
    #:exit
    #:exit-reason
-   #:exit-from
    #:finished
    #:shutdown
    #:kill
@@ -42,7 +41,7 @@
    #:unlink
    #:link-exit
    #:link-exit-p
-   #:link-exit-linked-actor
+   #:link-exit-from
    #:link-exit-reason
    ;; Monitoring
    #:monitor
@@ -52,7 +51,7 @@
    #:monitor-exit
    #:monitor-exit-p
    #:monitor-exit-monitor
-   #:monitor-exit-type
+   #:monitor-exit-from
    #:monitor-exit-reason))
 (in-package #:memento-mori)
 
@@ -157,10 +156,10 @@
                      (handler-bind ((exit (lambda (exit)
                                             (return-from run-actor-function exit)))
                                     (%killed (lambda (killed)
+                                               (declare (ignore killed))
                                                (return-from run-actor-function
                                                  (make-condition 'exit
-                                                                 :reason 'killed
-                                                                 :from (%killed-from killed)))))
+                                                                 :reason 'killed))))
                                     (error (lambda (e)
                                              (when debugp
                                                (bt:with-recursive-lock-held (*debugger-lock*)
@@ -214,15 +213,13 @@
 ;;;
 
 (define-condition exit (condition)
-  ((reason :initarg :reason :reader exit-reason)
-   (from :initarg :from :initform (current-actor) :reader exit-from)))
+  ((reason :initarg :reason :reader exit-reason)))
 
-(define-condition %killed ()
-  ((from :initarg :from :initform (current-actor) :reader %killed-from)))
+(define-condition %killed () ())
 
 (defmethod print-object ((exit exit) stream)
-  (print-unreadable-object (exit stream :type t :identity t)
-    (format stream "reason: ~s" (exit-reason exit))))
+  (print-unreadable-object (exit stream :type t)
+    (format stream "~s" (exit-reason exit))))
 
 (defun signal-exit (actor exit &aux (actor (ensure-actor actor)))
   (cond ((eq actor (current-actor))
@@ -327,11 +324,11 @@
 (defvar *link-lock* (bt:make-lock))
 
 (defstruct link-exit
-  (linked-actor nil :read-only t)
+  (from nil :read-only t)
   (reason nil :read-only t))
 (defmethod print-object ((link-exit link-exit) stream)
-  (print-unreadable-object (link-exit stream :type t :identity t)
-    (format stream "[~S]"
+  (print-unreadable-object (link-exit stream :type t)
+    (format stream "~S"
             (link-exit-reason link-exit))))
 
 (defun link (actor &aux (self (current-actor)))
@@ -355,7 +352,7 @@
 
 (defun send-exit-message (actor exit)
   (send actor (make-link-exit
-               :linked-actor (current-actor)
+               :from (current-actor)
                :reason (exit-reason exit))))
 
 (defun notify-links (actor exit)
@@ -398,11 +395,11 @@
 
 (defstruct monitor-exit
   (monitor nil :read-only t)
-  (actor nil :read-only t)
+  (from nil :read-only t)
   (reason nil :read-only t))
 (defmethod print-object ((monitor-exit monitor-exit) stream)
-  (print-unreadable-object (monitor-exit stream :type t :identity t)
-    (format stream "[~S]"
+  (print-unreadable-object (monitor-exit stream :type t)
+    (format stream "~S"
             (monitor-exit-reason monitor-exit))))
 
 (defun notify-monitors (actor exit)
@@ -410,6 +407,6 @@
     (loop for monitor in (actor-monitors actor)
        do (send (monitor-observer monitor)
                 (make-monitor-exit :monitor monitor
-                                   :actor actor
+                                   :from actor
                                    :reason (exit-reason exit))))
     (setf (actor-monitors actor) nil)))

@@ -74,7 +74,7 @@
   (< (- to from) period))
 
 (defmethod mori-srv:on-message ((sup supervisor) (exit link-exit))
-  (when-let (child (find (link-exit-linked-actor exit)
+  (when-let (child (find (link-exit-from exit)
                          (hash-table-values (supervisor-children sup))
                          :key #'supervisor-child-actor))
     (if (> (length (add-restart sup)) (supervisor-max-restarts sup))
