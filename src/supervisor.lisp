@@ -79,7 +79,7 @@
                          :key #'supervisor-child-actor))
     (if (> (length (add-restart sup)) (supervisor-max-restarts sup))
         (loop for child in (hash-table-values (supervisor-children sup))
-           do (shutdown 'too-many-restarts (supervisor-child-actor child))
+           do (exit 'shutdown (supervisor-child-actor child))
            finally (exit 'too-many-restarts))
         (let ((child-spec (supervisor-child-child-spec child)))
           (setf (supervisor-child-actor child) (%start-child child-spec))

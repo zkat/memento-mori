@@ -43,15 +43,18 @@
 (defloglevel debug *debug-io*)
 
 ;; Really meant for internal use of the core actor package.
-(defun log-crash (actor exit)
-  (typecase exit
-    (actor-shutdown nil)
-    (actor-completion nil)
-    (actor-kill (warn "Actor ~a killed." actor))
-    (actor-error (error "Actor ~a shutting down due to error: ~a"
-                        actor (actor-exit-reason exit)))
-    (actor-exit (warn "Actor ~a exited abnormally: ~a"
-                      actor (actor-exit-reason exit)))))
+(defun log-crash (actor exit &aux (reason (exit-reason exit)))
+  (cond ((eq 'killed reason)
+         (warn "Actor ~a killed." actor))
+        ((eq 'error reason)
+         (error "Actor ~a shutting down due to error: ~a"
+                actor (exit-reason exit)))
+        ((or (eq 'shutdown reason)
+             (eq 'finished reason))
+         nil)
+        (t
+         (warn "Actor ~a exited abnormally: ~a"
+               actor (exit-reason exit)))))
 
 ;;;
 ;;; Server protocol implementation

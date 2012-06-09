@@ -55,7 +55,7 @@
       (good (report "~a sounded good!" name))
       (bad (cond ((= 1 (random 4))
                   (report "~a played a false note. Uh oh." name)
-                  (mori-srv:exit-server-loop 'bad-note))
+                  (exit 'bad-note))
                  (t
                   (report "~a produced sound!" name)))))
     ;; FIXME - It seems to be really easy to overload timers in CCL. Even
@@ -65,9 +65,9 @@
     (setf (musician-timer musician)
           (mori-timer:send-after 1 'play))))
 
-(defmethod mori-srv:on-message ((musician musician) (exit link-exit))
+(defmethod mori-srv:on-message ((musician musician) (link-exit link-exit))
   (report "The band supervisor walked out on ~a!" (musician-name musician))
-  (mori-srv:exit-server-loop exit))
+  (exit link-exit))
 
 (defmethod mori-srv:on-shutdown ((musician musician) reason)
   (report "~a going away because of ~a (~a)"
@@ -94,4 +94,4 @@
 (defun stop-band-supervisor (&optional killp)
   (if killp
       (kill 'band-supervisor)
-      (shutdown 'bye 'band-supervisor)))
+      (exit 'shutdown 'band-supervisor)))
