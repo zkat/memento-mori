@@ -1,6 +1,6 @@
-(cl:defpackage #:memento-mori.test.supervisor
+(cl:defpackage #:memento-mori.example.supervisor
   (:use #:cl #:alexandria))
-(cl:in-package #:memento-mori.test.supervisor)
+(cl:in-package #:memento-mori.example.supervisor)
 
 (defun test-sup ()
   (mori-sup:start-supervisor

@@ -1,9 +1,9 @@
-(cl:defpackage #:memento-mori.test.server
+(cl:defpackage #:memento-mori.example.server
   (:use #:cl #:alexandria)
   (:import-from #:memento-mori.server
                 #:defcall
                 #:defcast))
-(cl:in-package #:memento-mori.test.server)
+(cl:in-package #:memento-mori.example.server)
 
 (defstruct example-server deferred-request deferred-value)
 

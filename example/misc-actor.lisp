@@ -1,6 +1,6 @@
-(cl:defpackage #:memento-mori.test
+(cl:defpackage #:memento-mori.example.misc-actor
   (:use #:cl #:alexandria #:memento-mori #:memento-mori.utils))
-(cl:in-package #:memento-mori.test)
+(cl:in-package #:memento-mori.example.misc-actor)
 
 (defun test ()
   (let ((actor (spawn (lambda ()
