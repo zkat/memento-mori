@@ -206,8 +206,7 @@
      ,@clauses))
 
 (defun flush-messages ()
-  (format t "~&Flushing ~s.~%"
-          (receive :timeout 0 :on-timeout (lambda () (return-from flush-messages t))))
+  (receive :timeout 0 :on-timeout (lambda () (return-from flush-messages t)))
   (flush-messages))
 
 ;;;
