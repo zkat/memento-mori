@@ -15,4 +15,5 @@
              (:file "actor")
              (:file "timer")
              (:file "server")
-             (:file "logger")))))
+             (:file "logger")
+             (:file "supervisor")))))
