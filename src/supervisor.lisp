@@ -78,7 +78,7 @@
                          (hash-table-values (supervisor-children sup))
                          :key #'supervisor-child-actor))
     (if (> (length (add-restart sup)) (supervisor-max-restarts sup))
-        (signal 'actor-shutdown :reason "Too many restarts.")
+        (exit "Too many restarts.")
         (let ((child-spec (supervisor-child-child-spec child)))
           (setf (supervisor-child-actor child) (%start-child child-spec))
           (mori-log:info "Supervisor child with child spec ~a restarted after exit with ~a."
