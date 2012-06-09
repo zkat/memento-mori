@@ -57,8 +57,10 @@
                   (mori-srv:exit-server-loop 'bad-note))
                  (t
                   (report "~a produced sound!" name)))))
-    (sleep 0.75)
-    (send (current-actor) 'play)))
+    ;; FIXME - It seems to be really easy to overload timers. Even setting
+    ;; this to 0.5 puts a surprising amount of load on the system, even
+    ;; though sleep + send does not.
+    (mori-timer:send-after 1 'play)))
 
 (defmethod mori-srv:on-message ((musician musician) (exit link-exit))
   (report "The band supervisor walked out on ~a!" (musician-name musician))
