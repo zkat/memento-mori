@@ -72,18 +72,16 @@
 ;;; Supervisor
 ;;;
 (defun start-band-supervisor ()
-  ;; The LYSE example has multiple kinds of supervisor, but mori currently
-  ;; only supports one-for-one.
+  ;; TODO - The LYSE example has multiple kinds of supervisor, but mori
+  ;; currently only supports one-for-one.
   (mori-sup:start-supervisor
    :name 'band-supervisor
    :max-restarts 3 ; Number of restarts allowed...
    :max-restart-time 60 ; ...within these many seconds
    :initial-child-specs
-   (list
-    (mori-sup:make-child-spec 'singer (curry #'start-musician 'singer 'good))
-    (mori-sup:make-child-spec 'bass (curry #'start-musician 'bass 'good))
-    (mori-sup:make-child-spec 'drum (curry #'start-musician 'drum 'bad))
-    (mori-sup:make-child-spec 'keytar (curry #'start-musician 'keytar 'good)))))
+   (flet ((child (role skill)
+            (mori-sup:make-child-spec role (curry #'start-musician role skill))))
+     (mapcar #'child '(singer bass drum keytar) '(good good bad good)))))
 
 (defun stop-band-supervisor (&optional killp)
   (if killp
