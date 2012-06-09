@@ -28,8 +28,12 @@
    #:actor-break
    ;; Named actors
    #:find-actor
+   #:ensure-actor
+   #:registered-names
    #:register
    #:unregister
+   #:no-such-actor
+   #:actor-already-exists
    ;; Linking
    #:link
    #:unlink
@@ -78,10 +82,10 @@
   *current-actor*)
 
 (defun actor-alive-p (actor)
-  (bt:thread-alive-p (actor-thread actor)))
+  (bt:thread-alive-p (actor-thread (ensure-actor actor))))
 
 (defun %trap-exits-p (actor)
-  (bt:with-lock-held ((actor-exit-lock actor))
+  (bt:with-lock-held ((actor-exit-lock (ensure-actor actor)))
     (actor-trap-exits-setting actor)))
 
 (defun trap-exits-p (&aux (actor (current-actor)))
@@ -98,8 +102,12 @@
 (defun spawn (func &key
               linkp monitorp trap-exits-p
               (name nil namep) (debugp *debug-on-error-p*))
+  (when namep
+    (assert (symbolp name) ()
+            "~S is not a symbol. Actors can only be registered with symbols." name))
   (let* ((actor (make-actor :function func :trap-exits-setting trap-exits-p))
          (monitor (when monitorp (monitor actor))))
+    (when namep (register name actor))
     (setf (actor-thread actor)
           (bt:make-thread
            (make-actor-function actor func linkp namep name debugp)
@@ -115,14 +123,17 @@
                             &aux (parent (current-actor)))
   (lambda ()
     (without-interrupts
-      (when linkp (link actor parent))
-      (when namep (register name actor))
       (let (exit)
         (unwind-protect
-             (setf exit (run-actor-function func debugp))
+             (setf exit
+                   (run-actor-function
+                    (lambda ()
+                      (when linkp (link actor parent))
+                      (funcall func))
+                    debugp))
           (notify-links actor exit)
           (notify-monitors actor exit)
-          (when namep (unregister name)))))))
+          (when namep (unregister name nil)))))))
 
 (defvar *debugger-lock* (bt:make-lock))
 
@@ -148,7 +159,7 @@
 ;;; Messaging
 ;;;
 (defun send (actor message)
-  (memento-mori.mailbox:send (actor-mailbox actor) message))
+  (memento-mori.mailbox:send (actor-mailbox (ensure-actor actor)) message))
 
 (defun receive (&key timeout on-timeout)
   (memento-mori.mailbox:receive (actor-mailbox (current-actor))
@@ -181,7 +192,7 @@
   (print-unreadable-object (actor-exit stream :type t :identity t)
     (format stream "reason: ~s" (actor-exit-reason actor-exit))))
 
-(defun signal-exit (actor exit)
+(defun signal-exit (actor exit &aux (actor (ensure-actor actor)))
   (cond ((eq actor (current-actor))
          (signal exit))
         ((and (%trap-exits-p actor)
@@ -205,28 +216,79 @@
   (signal-exit actor (make-condition 'actor-kill)))
 
 (defun actor-break (actor &optional string &rest args)
-  (bt:interrupt-thread (actor-thread actor)
+  (bt:interrupt-thread (actor-thread (ensure-actor actor))
                        (apply #'curry #'break string args)))
 
 ;;;
 ;;; Registration
 ;;;
-(defvar *registered-actors* (make-hash-table))
+(defvar *registered-actors* (make-hash-table :test #'eq))
 (defvar *registration-lock* (bt:make-lock))
 
-(defun find-actor (name)
-  (bt:with-lock-held (*registration-lock*)
-    (values (gethash name *registered-actors*))))
+(define-condition no-such-actor (error)
+  ((name :initarg :name :reader no-such-actor-name))
+  (:report (lambda (e stream)
+             (format stream "~S is not the name of a registered actor."
+                     (no-such-actor-name e)))))
 
-(defun register (name actor)
+(define-condition actor-already-exists (error)
+  ((name :initarg :name :reader actor-already-exists-name)
+   (existing-actor :initarg :existing :reader actor-already-exists-existing-actor))
+  (:report (lambda (e stream)
+             (format stream "~S is already registered as ~s."
+                     (actor-already-exists-existing-actor e)
+                     (actor-already-exists-name e)))))
+
+(defun list-registered-names ()
   (bt:with-lock-held (*registration-lock*)
+    (hash-table-keys *registered-actors*)))
+
+(defun find-actor (name &optional (errorp t))
+  (assert (symbolp name) ()
+          "~S is not a symbol. Actors can only be registered with symbols." name)
+  (bt:with-lock-held (*registration-lock*)
+    (multiple-value-bind (actor foundp)
+        (gethash name *registered-actors*)
+      (cond (foundp actor)
+            (errorp (error 'no-such-actor :name name))
+            (t nil)))))
+
+(defun register (name actor &optional (errorp t))
+  (assert (symbolp name) ()
+          "~S is not a symbol. Actors can only be registered with symbols." name)
+  (assert (actor-p actor) () "~S is not an actor." actor)
+  (bt:with-lock-held (*registration-lock*)
+    (when errorp
+      (when-let ((old-actor (find-actor name nil)))
+        (restart-case
+            (error 'actor-already-exists
+                   :name name
+                   :existing old-actor)
+          (replace ()
+            :report "Replace the registration. Existing actor will continue to run."
+            nil)
+          (shutdown-and-replace ()
+            :report "Replace the registration. Existing actor will be sent a shutdown request."
+            (shutdown "Replaced during registration." old-actor))
+          (kill-and-replace ()
+            :report "Replace the registration. Existing actor will be killed."
+            (kill old-actor)))))
     (setf (actor-name actor) name
           (actor-named-p actor) t
           (gethash name *registered-actors*) actor)))
 
-(defun unregister (name)
+(defun ensure-actor (actor)
+  (etypecase actor
+    (actor actor)
+    (symbol (find-actor actor))))
+
+(defun unregister (name &optional (errorp t))
+  (assert (symbolp name) ()
+          "~S is not a symbol. Actors can only be registered with symbols." name)
   (bt:with-lock-held (*registration-lock*)
-    (remhash name *registered-actors*)))
+    (when (and (null (remhash name *registered-actors*))
+               errorp)
+      (error 'no-such-actor :name name))))
 
 (defun maybe-format-actor-name (actor stream)
   (bt:with-lock-held (*registration-lock*)
@@ -246,14 +308,18 @@
             (link-exit-reason link-exit))))
 
 (defun link (actor &optional (actor2 (current-actor)))
-  (bt:with-lock-held (*link-lock*)
-    (pushnew actor (actor-links actor2))
-    (pushnew actor2 (actor-links actor))))
+  (let ((actor (ensure-actor actor))
+        (actor2 (ensure-actor actor2)))
+    (bt:with-lock-held (*link-lock*)
+      (pushnew actor (actor-links actor2))
+      (pushnew actor2 (actor-links actor)))))
 
 (defun unlink (actor &optional (actor2 (current-actor)))
-  (bt:with-recursive-lock-held (*link-lock*)
-    (removef (actor-links actor) actor2)
-    (removef (actor-links actor2) actor)))
+  (let ((actor (ensure-actor actor))
+        (actor2 (ensure-actor actor2)))
+    (bt:with-recursive-lock-held (*link-lock*)
+      (removef (actor-links actor) actor2)
+      (removef (actor-links actor2) actor))))
 
 (defun send-exit-message (actor exit)
   (send actor (make-link-exit
@@ -279,10 +345,12 @@
     (format stream "Actor: ~a" (monitor-monitored-actor monitor))))
 
 (defun monitor (actor &optional (observer (current-actor)))
-  (bt:with-lock-held ((actor-monitor-lock actor))
-    (let ((ref (make-monitor :observer observer :monitored-actor actor)))
-      (push ref (actor-monitors actor))
-      ref)))
+  (let ((actor (ensure-actor actor))
+        (observer (ensure-actor observer)))
+    (bt:with-lock-held ((actor-monitor-lock actor))
+      (let ((ref (make-monitor :observer observer :monitored-actor actor)))
+        (push ref (actor-monitors actor))
+        ref))))
 
 (defun demonitor (ref)
   (let ((actor (monitor-monitored-actor ref)))
