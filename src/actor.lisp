@@ -23,6 +23,7 @@
    #:actor-completion
    #:actor-error
    #:exit
+   #:shutdown
    #:kill
    #:actor-break
    ;; Named actors
@@ -191,6 +192,10 @@
                               (lambda ()
                                 (without-interrupts
                                   (signal exit)))))))
+
+(defun shutdown (reason &optional (actor (current-actor)))
+  (signal-exit actor (make-condition 'actor-shutdown
+                                     :reason reason)))
 
 (defun exit (reason &optional (actor (current-actor)))
   (signal-exit actor (make-condition 'actor-exit
