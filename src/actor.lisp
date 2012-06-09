@@ -148,9 +148,9 @@
                       (when linkp (link actor parent))
                       (funcall func))
                     debugp))
+          (when namep (unregister name nil))
           (notify-links actor exit)
           (notify-monitors actor exit)
-          (when namep (unregister name nil))
           (when (crash-logging-enabled-p)
             (log-crash actor exit)))))))
 
