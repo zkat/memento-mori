@@ -64,6 +64,11 @@
     (spawn (lambda ()
              (error "Blech")))))
 
+(defun error-logging ()
+  (enable-crash-logging)
+  (spawn (lambda ()
+           (error "OH THE HUMANITY"))))
+
 (defun timeout ()
   (spawn (lambda ()
            (receive :timeout 0.5

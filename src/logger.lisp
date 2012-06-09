@@ -5,6 +5,7 @@
   (:export
 
    #:ensure-logger
+   #:log-crash
    
    #:emergency
    #:alert
@@ -22,7 +23,7 @@
   (log-message *debug-io* 'info "Starting mori-log server."))
 
 (defmethod mori-srv:on-shutdown ((logger logger) reason)
-  (warn "memento-mori logger server is shutting down because of ~a!" reason))
+  (cl:warn "memento-mori logger server is shutting down because of ~a!" reason))
 
 (defun log-message (stream log-level format-string &rest format-args)
   (format stream
@@ -30,6 +31,12 @@
           log-level
           (apply #'format nil format-string format-args))
   (finish-output stream))
+
+(defun log-crash (actor exit)
+  (typecase exit
+    (actor-kill (warn "Actor ~a killed." actor))
+    (actor-error (error "Actor ~a shutting down due to error: ~a"
+                        actor (actor-exit-reason exit)))))
 
 (defmacro defloglevel (level-name stream)
   `(mori-srv:defcast ,level-name (format-string &rest format-args)
