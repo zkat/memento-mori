@@ -47,7 +47,7 @@ CL-USER>
 
 `Remember you must die`
 
-`memento-mori` is a library for writing robust, agent-based systems in
+`memento-mori` is a library for writing robust, actor-based systems in
 Common Lisp. It draws inspiration from [Erlang/OTP](http://www.erlang.org),
 particularly its approach to robust systems. `memento-mori` works under the
 assumption that whatever you do, you will eventually crash, and thus the
