@@ -17,31 +17,20 @@
    #:debug))
 (cl:in-package #:memento-mori.logger)
 
+(defmacro defloglevel (level-name stream)
+  `(defun ,level-name (format-string &rest format-args)
+     (ignore-errors (apply #'log-message ,stream ',level-name format-string format-args))))
+
+;;;
+;;; API
+;;;
 (defstruct logger)
 
-(defmethod mori-srv:on-init ((logger logger))
-  (log-message *debug-io* 'info "Starting mori-log server."))
-
-(defmethod mori-srv:on-shutdown ((logger logger) reason)
-  (cl:warn "memento-mori logger server is shutting down because of ~a!" reason))
-
-(defun log-message (stream log-level format-string &rest format-args)
-  (format stream
-          "~&[~s] ~a~%"
-          log-level
-          (apply #'format nil format-string format-args))
-  (finish-output stream))
-
-(defun log-crash (actor exit)
-  (typecase exit
-    (actor-kill (warn "Actor ~a killed." actor))
-    (actor-error (error "Actor ~a shutting down due to error: ~a"
-                        actor (actor-exit-reason exit)))))
-
-(defmacro defloglevel (level-name stream)
-  `(mori-srv:defcast ,level-name (format-string &rest format-args)
-       (logger logger :server-form (mori:find-actor 'logger))
-     (ignore-errors (apply #'log-message ,stream ',level-name format-string format-args))))
+(defun ensure-logger ()
+  (handler-case
+      (mori-srv:start #'make-logger :name 'logger)
+    (actor-already-exists ()
+      (find-actor 'logger))))
 
 ;; Levels taken from man syslog
 (defloglevel emergency *error-output*)
@@ -53,17 +42,30 @@
 (defloglevel info *debug-io*)
 (defloglevel debug *debug-io*)
 
-(defun start-logger ()
-  (mori-srv:start #'make-logger
-                  :name 'logger))
+;; Really meant for internal use of the core actor package.
+(defun log-crash (actor exit)
+  (typecase exit
+    (actor-kill (warn "Actor ~a killed." actor))
+    (actor-error (error "Actor ~a shutting down due to error: ~a"
+                        actor (actor-exit-reason exit)))))
 
-(defun ensure-logger ()
-  (handler-case
-      (start-logger)
-    (actor-already-exists ()
-      (find-actor 'logger))))
+;;;
+;;; Server protocol implementation
+;;;
+(defmethod mori-srv:on-init ((logger logger))
+  (log-message *debug-io* 'info "Starting mori-log server."))
 
+(defmethod mori-srv:on-shutdown ((logger logger) reason)
+  (cl:warn "memento-mori logger server is shutting down because of ~a!" reason))
+
+(mori-srv:defcast log-message (stream log-level format-string &rest format-args)
+    (logger logger :server-form 'logger)
+  (format stream
+          "~&[~s] ~a~%"
+          log-level
+          (apply #'format nil format-string format-args))
+  (finish-output stream))
+
+;; Start the logger on load.
 (eval-when (:load-toplevel :execute)
-  ;; TODO - no, this is not thread safe, but it'll work out once actor
-  ;;        registration is hashed out better.
   (ensure-logger))
