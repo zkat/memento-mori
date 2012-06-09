@@ -26,8 +26,7 @@
                        :linkp t))
            (loop for exit = (receive :timeout 1 :on-timeout (constantly nil))
               while (link-exit-p exit)
-              do (format t "~&Got an exit of type ~a. Reason: ~s~%"
-                         (link-exit-type exit)
+              do (format t "~&Got an exit message with reason: ~s~%"
                          (link-exit-reason exit)))
            (format t "~&Done. Exiting master actor.~%"))
          :trap-exits-p t))
@@ -84,9 +83,8 @@
                   :monitorp t)
            (let ((exit (receive)))
              (when (monitor-exit-p exit)
-               (format t "~&Monitor signaled exit: ~a. Exit type: ~a. Reason: ~s.~%"
+               (format t "~&Monitor signaled exit: ~a. Reason: ~s.~%"
                        (monitor-exit-monitor exit)
-                       (monitor-exit-type exit)
                        (monitor-exit-reason exit)))))))
 
 (defun test-selective-receive ()
