@@ -136,6 +136,8 @@
     (bt:with-recursive-lock-held (*log-settings-lock*)
       log-crashes-p)))
 
+(defvar *debugger-lock* (bt:make-lock))
+
 (defun make-actor-function (actor func linkp namep name debugp
                             &aux (parent (current-actor)))
   (lambda ()
@@ -143,11 +145,26 @@
       (let (exit)
         (unwind-protect
              (setf exit
-                   (run-actor-function
-                    (lambda ()
-                      (when linkp (link actor parent))
-                      (funcall func))
-                    debugp))
+                   (block run-actor-function
+                     (handler-bind ((actor-exit (lambda (exit)
+                                                  (return-from run-actor-function exit)))
+                                    (error (lambda (e)
+                                             (when debugp
+                                               (bt:with-recursive-lock-held (*debugger-lock*)
+                                                 (invoke-debugger e)))
+                                             (return-from run-actor-function
+                                               (make-condition 'actor-error
+                                                               :reason e)))))
+                       (restart-case
+                           (make-condition 'actor-completion
+                                           :reason
+                                           (#+sbcl sb-sys:allow-with-interrupts
+                                            #-sbcl progn
+                                             (when linkp (link actor parent))
+                                             (with-interrupts (funcall func))))
+
+                         (kill-actor ()
+                           (make-condition 'actor-kill))))))
           (when namep (unregister name nil))
           (notify-links actor exit)
           (notify-monitors actor exit)
@@ -158,26 +175,6 @@
   (when-let (pkg (find-package '#:memento-mori.logger))
     (when-let (symbol (find-symbol (string '#:log-crash) pkg))
       (funcall symbol actor exit))))
-
-(defvar *debugger-lock* (bt:make-lock))
-
-(defun run-actor-function (func debugp)
-  (handler-bind ((actor-exit (lambda (exit)
-                               (return-from run-actor-function exit)))
-                 (error (lambda (e)
-                          (when debugp
-                            (bt:with-recursive-lock-held (*debugger-lock*)
-                              (invoke-debugger e)))
-                          (return-from run-actor-function
-                            (make-condition 'actor-error
-                                            :reason e)))))
-    (restart-case
-        (make-condition 'actor-completion
-                        :reason
-                        (with-interrupts (funcall func)))
-
-      (kill-actor ()
-        (make-condition 'actor-kill)))))
 
 ;;;
 ;;; Messaging
