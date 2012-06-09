@@ -5,7 +5,6 @@
 (defun test-sup ()
   (mori-sup:start-supervisor
    :name 'test-sup
-   :debugp t
    :initial-child-specs
    (list
     (mori-sup:make-child-spec
