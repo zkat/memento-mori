@@ -182,17 +182,19 @@
 
 (defun receive (&key timeout on-timeout)
   (memento-mori.mailbox:receive (actor-mailbox (current-actor))
-                             :timeout timeout
-                             :on-timeout on-timeout))
+                                :timeout timeout
+                                :on-timeout on-timeout))
 
-(defmacro receive-cond ((value-var &key timeout on-timeout) &body clauses)
+(defmacro receive-cond ((value-var &key timeout on-timeout)
+                        &body clauses)
   `(memento-mori.mailbox:receive-cond (,value-var (actor-mailbox (current-actor))
                                                :timeout ,timeout
                                                :on-timeout ,on-timeout)
      ,@clauses))
 
 (defun flush-messages ()
-  (receive :timeout 0 :on-timeout (lambda () (return-from flush-messages t)))
+  (format t "~&Flushing ~s.~%"
+          (receive :timeout 0 :on-timeout (lambda () (return-from flush-messages t))))
   (flush-messages))
 
 ;;;
