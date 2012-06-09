@@ -103,8 +103,7 @@
               linkp monitorp trap-exits-p
               (name nil namep) (debugp *debug-on-error-p*))
   (when namep
-    (assert (symbolp name) ()
-            "~S is not a symbol. Actors can only be registered with symbols." name))
+    (check-type name symbol "a valid actor name"))
   (let* ((actor (make-actor :function func :trap-exits-setting trap-exits-p))
          (monitor (when monitorp (monitor actor))))
     (when namep (register name actor))
@@ -244,8 +243,7 @@
     (hash-table-keys *registered-actors*)))
 
 (defun find-actor (name &optional (errorp t))
-  (assert (symbolp name) ()
-          "~S is not a symbol. Actors can only be registered with symbols." name)
+  (check-type name symbol "a valid actor name")
   (bt:with-lock-held (*registration-lock*)
     (multiple-value-bind (actor foundp)
         (gethash name *registered-actors*)
@@ -254,9 +252,8 @@
             (t nil)))))
 
 (defun register (name actor &optional (errorp t))
-  (assert (symbolp name) ()
-          "~S is not a symbol. Actors can only be registered with symbols." name)
-  (assert (actor-p actor) () "~S is not an actor." actor)
+  (check-type name symbol "a valid actor name")
+  (check-type actor actor "an actor object")
   (bt:with-lock-held (*registration-lock*)
     (when errorp
       (when-let ((old-actor (find-actor name nil)))
@@ -283,8 +280,7 @@
     (symbol (find-actor actor))))
 
 (defun unregister (name &optional (errorp t))
-  (assert (symbolp name) ()
-          "~S is not a symbol. Actors can only be registered with symbols." name)
+  (check-type name symbol "a valid actor name")
   (bt:with-lock-held (*registration-lock*)
     (when (and (null (remhash name *registered-actors*))
                errorp)
