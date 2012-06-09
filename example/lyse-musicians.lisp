@@ -20,7 +20,7 @@
 ;;;
 ;;; Musician
 ;;;
-(defstruct musician role name skill)
+(defstruct musician role name skill timer)
 
 (defun start-musician (role skill)
   (mori-srv:start (lambda () (make-musician :role role :skill skill))
@@ -34,7 +34,8 @@
   (report "Musician ~a, playing the ~a entered the room."
                  (musician-name musician)
                  (musician-role musician))
-  (mori-timer:send-after (random 3) 'play))
+  (setf (musician-timer musician)
+        (mori-timer:send-after (random 3) 'play)))
 
 (defun pick-name ()
   (concatenate 'string
@@ -57,10 +58,12 @@
                   (mori-srv:exit-server-loop 'bad-note))
                  (t
                   (report "~a produced sound!" name)))))
-    ;; FIXME - It seems to be really easy to overload timers. Even setting
-    ;; this to 0.5 puts a surprising amount of load on the system, even
-    ;; though sleep + send does not.
-    (mori-timer:send-after 1 'play)))
+    ;; FIXME - It seems to be really easy to overload timers in CCL. Even
+    ;; setting this to 0.5 puts a surprising amount of load on the system,
+    ;; even though sleep + send does not. SBCL is perfectly happy with
+    ;; small timeouts, though.
+    (setf (musician-timer musician)
+          (mori-timer:send-after 1 'play))))
 
 (defmethod mori-srv:on-message ((musician musician) (exit link-exit))
   (report "The band supervisor walked out on ~a!" (musician-name musician))
@@ -68,7 +71,10 @@
 
 (defmethod mori-srv:on-shutdown ((musician musician) reason)
   (report "~a going away because of ~a (~a)"
-          (musician-name musician) reason (musician-role musician)))
+          (musician-name musician) reason (musician-role musician))
+  ;; Clean up the timer when we shut down..
+  (when-let (timer (musician-timer musician))
+    (mori-timer:cancel-timer timer)))
 
 ;;;
 ;;; Supervisor
