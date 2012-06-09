@@ -29,7 +29,7 @@
   (report "Musician ~a, playing the ~a entered the room."
                  (musician-name musician)
                  (musician-role musician))
-  (mori-timer:send-after (random 3.0) 'play))
+  (mori-timer:send-after (random 3) 'play))
 
 (defun pick-name ()
   (concatenate 'string
@@ -52,7 +52,7 @@
                   (mori-srv:exit-server-loop 'bad-note))
                  (t
                   (report "~a produced sound!" name)))))
-    (mori-timer:send-after (random 0.75) 'play)))
+    (mori-timer:send-after 1/4 'play)))
 
 (defmethod mori-srv:on-message ((musician musician) (exit link-exit))
   (report "The band supervisor walked out on ~a!" (musician-name musician))
@@ -66,11 +66,20 @@
 ;;; Supervisor
 ;;;
 (defun start-band-supervisor ()
+  ;; The LYSE example has multiple kinds of supervisor, but mori currently
+  ;; only supports one-for-one.
   (mori-sup:start-supervisor
    :name 'band-supervisor
+   :max-restarts 3
+   :max-restart-time 10
    :initial-child-specs
    (list
     (mori-sup:make-child-spec 'singer (curry #'start-musician 'singer 'good))
     (mori-sup:make-child-spec 'bass (curry #'start-musician 'bass 'good))
     (mori-sup:make-child-spec 'drum (curry #'start-musician 'drum 'bad))
     (mori-sup:make-child-spec 'keytar (curry #'start-musician 'keytar 'good)))))
+
+(defun stop-band-supervisor (&optional killp)
+  (if killp
+      (kill 'band-supervisor)
+      (shutdown 'bye 'band-supervisor)))
