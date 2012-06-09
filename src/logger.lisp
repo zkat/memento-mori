@@ -64,10 +64,11 @@
 
 (mori-srv:defcast log-message (stream log-level format-string &rest format-args)
     (logger logger :server-form 'logger)
-  (format stream
-          "~&[~(~s~)] ~a~%"
-          log-level
-          (apply #'format nil format-string format-args))
+  (let (*print-pretty*)
+    (format stream
+            "~&[~(~s~)] ~a~%"
+            log-level
+            (apply #'format nil format-string format-args)))
   (finish-output stream))
 
 ;; Start the logger on load.
