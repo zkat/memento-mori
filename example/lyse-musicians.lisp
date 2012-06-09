@@ -1,5 +1,10 @@
 (cl:defpackage #:memento-mori.example.lyse-musicians
-  (:use #:cl #:alexandria #:memento-mori))
+  (:use #:cl #:alexandria #:memento-mori)
+  (:export
+   #:start-musician
+   #:stop-musician
+   #:start-band-supervisor
+   #:stop-band-supervisor))
 (cl:in-package #:memento-mori.example.lyse-musicians)
 
 ;;; TODO - this doesn't quite work yet.
