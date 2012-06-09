@@ -16,30 +16,31 @@ To load "memento-mori":
 [package memento-mori.logger].
 [memento-mori.logger:info] Starting mori-log server.
 (MEMENTO-MORI)
-CL-USER> (let ((actor (mori:spawn (lambda () (print (mori:receive))))))
+CL-USER> (let ((actor (mori:spawn (lambda ()
+                                    (mori-log:info "Message: ~s" (mori:receive))))))
            (mori:send actor "Hello, world!"))
-
-"Hello, world!" T
+[memento-mori.logger:info] Message: "Hello, world!"
+T
 CL-USER> (defstruct example-server)
 
 EXAMPLE-SERVER
 CL-USER> (mori-srv:defcall this-is-synchronous (this-is-an-argument)
              (server example-server)
-           (format t "~&Server actor: ~s. Argument: ~s~%"
-                   (mori:current-actor) this-is-an-argument)
+           (mori-log:info "Server actor: ~s. Argument: ~s"
+                          (mori:current-actor) this-is-an-argument)
            (values 1 2 3))
 THIS-IS-SYNCHRONOUS
 CL-USER> (let ((server (mori-srv:start #'make-example-server)))
            (mori:spawn (lambda ()
-                         (format t "~&Caller: ~s.~%" (mori:current-actor))
-                         (print
-                          (multiple-value-list
-                           (this-is-synchronous server 'an-argument)))
+                         (mori-log:info "Caller: ~s." (mori:current-actor))
+                         (mori-log:info "Multiple return values: ~a."
+                                        (multiple-value-list
+                                         (this-is-synchronous server 'an-argument)))
                          (mori:shutdown 'bye server))))
-Caller: #<ACTOR [0 msgs] #x302000E15C0D>.
-Server actor: #<ACTOR [0 msgs] #x302000E167BD>. Argument: AN-ARGUMENT
-
-(1 2 3) #<ACTOR [0 msgs] #x302000E15C0D>
+[memento-mori.logger:info] Caller: #<ACTOR [0 msgs] #x302000CEEFDD>.
+[memento-mori.logger:info] Server actor: #<ACTOR [0 msgs] #x302000CEFB8D>. Argument: AN-ARGUMENT
+[memento-mori.logger:info] Multiple return values: (1 2 3).
+#<ACTOR [0 msgs] #x302000CEEFDD>
 CL-USER>
 ```
 
