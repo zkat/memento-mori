@@ -44,7 +44,7 @@
 
 (defmacro with-interrupts (&body body)
   #+sbcl
-  `(sb-sys:allow-with-interrupts ,@body)
+  `(sb-sys:with-interrupts ,@body)
   #+ccl
   `(ccl:with-interrupts-enabled ,@body)
   #-(or sbcl ccl)
