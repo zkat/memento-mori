@@ -37,7 +37,7 @@
                              "Phoebe" "Ralphie" "Tim" "Wanda" "Janet"))
                " "
                (random-elt '("Frizzle" "Perlstein" "Ramon" "Ann" "Franklin"
-                             "Terese" "Tennelli" "Jamal" "Li" "Persteil"))))
+                             "Terese" "Tennelli" "Jamal" "Li" "Perstein"))))
 
 (mori-srv:defcall stop-musician ()
     (musician musician)
@@ -47,12 +47,13 @@
   (let ((name (musician-name musician)))
     (case (musician-skill musician)
       (good (report "~a sounded good!" name))
-      (bad (cond ((= 1 (random 5))
+      (bad (cond ((= 1 (random 4))
                   (report "~a played a false note. Uh oh." name)
                   (mori-srv:exit-server-loop 'bad-note))
                  (t
                   (report "~a produced sound!" name)))))
-    (mori-timer:send-after 1/4 'play)))
+    (sleep 0.75)
+    (send (current-actor) 'play)))
 
 (defmethod mori-srv:on-message ((musician musician) (exit link-exit))
   (report "The band supervisor walked out on ~a!" (musician-name musician))
@@ -70,8 +71,8 @@
   ;; only supports one-for-one.
   (mori-sup:start-supervisor
    :name 'band-supervisor
-   :max-restarts 3
-   :max-restart-time 10
+   :max-restarts 3 ; Number of restarts allowed...
+   :max-restart-time 60 ; ...within these many seconds
    :initial-child-specs
    (list
     (mori-sup:make-child-spec 'singer (curry #'start-musician 'singer 'good))
