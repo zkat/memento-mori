@@ -9,6 +9,8 @@
    #:disable-crash-logging
    #:crash-logging-enabled-p
    #:current-actor
+   #:actor
+   #:all-actors
    #:actor-alive-p
    #:trap-exits-p
    #:enable-trap-exits
@@ -99,6 +101,15 @@
   (bt:with-recursive-lock-held ((actor-exit-lock actor))
     (setf (actor-trap-exits-setting actor) nil)))
 
+(defvar *all-actors* ())
+(defvar *all-actors-lock* (bt:make-lock))
+(defmacro with-all-actors-lock (&body body)
+  `(bt:with-recursive-lock-held (*all-actors-lock*)
+     ,@body))
+
+(defun all-actors ()
+  (with-all-actors-lock (copy-list *all-actors*)))
+
 (defun spawn (func &key
               linkp monitorp trap-exits-p
               (name nil namep) (debugp *debug-on-error-p*))
@@ -116,6 +127,7 @@
             (cons '*current-actor* actor)
             (cons '*debug-on-error-p* *debug-on-error-p*)
             bt:*default-special-bindings*)))
+    (with-all-actors-lock (push actor *all-actors*))
     (if monitor
         (values actor monitor)
         actor)))
@@ -167,7 +179,8 @@
           (notify-links actor exit)
           (notify-monitors actor exit)
           (when (crash-logging-enabled-p)
-            (log-crash actor exit)))))))
+            (log-crash actor exit))
+          (with-all-actors-lock (deletef *all-actors* actor :test #'eq)))))))
 
 (defun log-crash (actor exit)
   (when-let (pkg (find-package '#:memento-mori.logger))
