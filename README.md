@@ -44,22 +44,20 @@ CL-USER> (let ((server (mori-srv:start #'make-example-server)))
 CL-USER>
 ```
 
-# Introduction
-
-`Remember you must die`
+# Introduction - Remember you must die
 
 `memento-mori` is a library for writing robust, actor-based systems in
 Common Lisp. It draws inspiration from [Erlang/OTP](http://www.erlang.org),
-particularly its approach to robust systems. `memento-mori` works under the
-assumption that whatever you do, you will eventually crash, and thus the
-best way to keep a system running is to try to limit the damage and
-recover.
+particularly its crash-first approach to high-availability
+systems. `memento-mori` works under the assumption that whatever you do,
+you will eventually crash, and thus the best way to keep a system running
+is to try to limit the damage and recover.
 
 `memento-mori` includes utilities to easily build call-and-response servers
 and supervision trees, along with the lower-level concurrency primitives
 like actor spawning, messaging, and inter-actor linking and
 monitoring. Running things across multiple processors is really just a
-bonus. :)
+bonus.
 
 This library is still under heavy development, and the API is not yet
 documented. If you're curious enough, you can check out the test/ directory
@@ -82,5 +80,4 @@ ideas.
   and restart behaviors (one-for-one, one-for-all, etc).
 
 * `memento-mori.logger` (aka `mori-log`) - A simple log server that prints
-  to `*error-output*` and `*debug-io*`. Exports some utility log levels to
-  help you figure out what's going on when you need it.
+  to `*error-output*` and `*debug-io*`.
