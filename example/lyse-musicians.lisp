@@ -66,8 +66,8 @@
           (mori-timer:send-after 1 'play))))
 
 (defmethod mori-srv:on-message ((musician musician) (link-exit link-exit))
-  (report "The band supervisor walked out on ~a!" (musician-name musician))
-  (exit link-exit))
+  (report "The band  walked out on ~a!" (musician-name musician))
+  (exit (link-exit-reason link-exit)))
 
 (defmethod mori-srv:on-shutdown ((musician musician) reason)
   (report "~a going away because of ~a (~a)"
