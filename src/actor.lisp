@@ -5,6 +5,9 @@
   (:export
    ;; Core
    #:*debug-on-error-p*
+   #:enable-crash-logging
+   #:disable-crash-logging
+   #:crash-logging-enabled-p
    #:current-actor
    #:actor-alive-p
    #:trap-exits-p
@@ -22,6 +25,7 @@
    #:actor-kill
    #:actor-completion
    #:actor-error
+   #:actor-exit-reason
    #:exit
    #:shutdown
    #:kill
@@ -118,6 +122,18 @@
             bt:*default-special-bindings*)))
     (values actor monitor)))
 
+(defvar *log-settings-lock* (bt:make-lock))
+(let ((log-crashes-p t))
+  (defun enable-crash-logging ()
+    (bt:with-lock-held (*log-settings-lock*)
+      (setf log-crashes-p t)))
+  (defun disable-crash-logging ()
+    (bt:with-lock-held (*log-settings-lock*)
+      (setf log-crashes-p nil)))
+  (defun crash-logging-enabled-p ()
+    (bt:with-lock-held (*log-settings-lock*)
+      log-crashes-p)))
+
 (defun make-actor-function (actor func linkp namep name debugp
                             &aux (parent (current-actor)))
   (lambda ()
@@ -132,7 +148,14 @@
                     debugp))
           (notify-links actor exit)
           (notify-monitors actor exit)
-          (when namep (unregister name nil)))))))
+          (when namep (unregister name nil))
+          (when (crash-logging-enabled-p)
+            (log-crash actor exit)))))))
+
+(defun log-crash (actor exit)
+  (when-let (pkg (find-package '#:memento-mori.logger))
+    (when-let (symbol (find-symbol (string '#:log-crash) pkg))
+      (funcall symbol actor exit))))
 
 (defvar *debugger-lock* (bt:make-lock))
 
