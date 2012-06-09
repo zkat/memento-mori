@@ -106,3 +106,8 @@
                (receive-cond (msg)
                  ((eq msg 'second)
                   (values "Got the second message" 'and-another-value)))))))))
+
+(defun test-timers ()
+  (spawn (lambda ()
+           (mori-timer:call-after 1 (curry #'print "test"))
+           (loop (sleep 1)))))
