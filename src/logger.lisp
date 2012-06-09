@@ -1,7 +1,7 @@
 (cl:defpackage #:memento-mori.logger
   (:use #:cl #:alexandria #:memento-mori #:memento-mori.utils)
   (:nicknames #:mori-log)
-  (:shadow #:warn #:error)
+  (:shadow #:warn #:error #:debug)
   (:export
 
    #:ensure-logger

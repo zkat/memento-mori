@@ -89,18 +89,18 @@
   (bt:thread-alive-p (actor-thread (ensure-actor actor))))
 
 (defun %trap-exits-p (actor)
-  (bt:with-lock-held ((actor-exit-lock (ensure-actor actor)))
+  (bt:with-recursive-lock-held ((actor-exit-lock (ensure-actor actor)))
     (actor-trap-exits-setting actor)))
 
 (defun trap-exits-p (&aux (actor (current-actor)))
   (%trap-exits-p actor))
 
 (defun enable-trap-exits (&aux (actor (current-actor)))
-  (bt:with-lock-held ((actor-exit-lock actor))
+  (bt:with-recursive-lock-held ((actor-exit-lock actor))
     (setf (actor-trap-exits-setting actor) t)))
 
 (defun disable-trap-exits (&aux (actor (current-actor)))
-  (bt:with-lock-held ((actor-exit-lock actor))
+  (bt:with-recursive-lock-held ((actor-exit-lock actor))
     (setf (actor-trap-exits-setting actor) nil)))
 
 (defun spawn (func &key
@@ -127,13 +127,13 @@
 (defvar *log-settings-lock* (bt:make-lock))
 (let ((log-crashes-p t))
   (defun enable-crash-logging ()
-    (bt:with-lock-held (*log-settings-lock*)
+    (bt:with-recursive-lock-held (*log-settings-lock*)
       (setf log-crashes-p t)))
   (defun disable-crash-logging ()
-    (bt:with-lock-held (*log-settings-lock*)
+    (bt:with-recursive-lock-held (*log-settings-lock*)
       (setf log-crashes-p nil)))
   (defun crash-logging-enabled-p ()
-    (bt:with-lock-held (*log-settings-lock*)
+    (bt:with-recursive-lock-held (*log-settings-lock*)
       log-crashes-p)))
 
 (defun make-actor-function (actor func linkp namep name debugp
@@ -166,7 +166,7 @@
                                (return-from run-actor-function exit)))
                  (error (lambda (e)
                           (when debugp
-                            (bt:with-lock-held (*debugger-lock*)
+                            (bt:with-recursive-lock-held (*debugger-lock*)
                               (invoke-debugger e)))
                           (return-from run-actor-function
                             (make-condition 'actor-error
@@ -264,12 +264,12 @@
                      (actor-already-exists-name e)))))
 
 (defun list-registered-names ()
-  (bt:with-lock-held (*registration-lock*)
+  (bt:with-recursive-lock-held (*registration-lock*)
     (hash-table-keys *registered-actors*)))
 
 (defun find-actor (name &optional (errorp t))
   (check-type name symbol "a valid actor name")
-  (bt:with-lock-held (*registration-lock*)
+  (bt:with-recursive-lock-held (*registration-lock*)
     (multiple-value-bind (actor foundp)
         (gethash name *registered-actors*)
       (cond (foundp actor)
@@ -279,7 +279,7 @@
 (defun register (name actor &optional (errorp t))
   (check-type name symbol "a valid actor name")
   (check-type actor actor "an actor object")
-  (bt:with-lock-held (*registration-lock*)
+  (bt:with-recursive-lock-held (*registration-lock*)
     (when errorp
       (when-let ((old-actor (find-actor name nil)))
         (restart-case
@@ -306,13 +306,13 @@
 
 (defun unregister (name &optional (errorp t))
   (check-type name symbol "a valid actor name")
-  (bt:with-lock-held (*registration-lock*)
+  (bt:with-recursive-lock-held (*registration-lock*)
     (when (and (null (remhash name *registered-actors*))
                errorp)
       (error 'no-such-actor :name name))))
 
 (defun maybe-format-actor-name (actor stream)
-  (bt:with-lock-held (*registration-lock*)
+  (bt:with-recursive-lock-held (*registration-lock*)
     (when (actor-named-p actor)
       (format stream "~s " (actor-name actor)))))
 
@@ -331,7 +331,7 @@
 (defun link (actor &optional (actor2 (current-actor)))
   (let ((actor (ensure-actor actor))
         (actor2 (ensure-actor actor2)))
-    (bt:with-lock-held (*link-lock*)
+    (bt:with-recursive-lock-held (*link-lock*)
       (pushnew actor (actor-links actor2))
       (pushnew actor2 (actor-links actor)))))
 
@@ -349,7 +349,7 @@
                :reason (actor-exit-reason exit))))
 
 (defun notify-links (actor exit)
-  (bt:with-lock-held (*link-lock*)
+  (bt:with-recursive-lock-held (*link-lock*)
     (when (actor-links actor)
       (loop for linked-actor in (actor-links actor)
          do
@@ -368,14 +368,14 @@
 (defun monitor (actor &optional (observer (current-actor)))
   (let ((actor (ensure-actor actor))
         (observer (ensure-actor observer)))
-    (bt:with-lock-held ((actor-monitor-lock actor))
+    (bt:with-recursive-lock-held ((actor-monitor-lock actor))
       (let ((ref (make-monitor :observer observer :monitored-actor actor)))
         (push ref (actor-monitors actor))
         ref))))
 
 (defun demonitor (ref)
   (let ((actor (monitor-monitored-actor ref)))
-    (bt:with-lock-held ((actor-monitor-lock actor))
+    (bt:with-recursive-lock-held ((actor-monitor-lock actor))
       (removef (actor-monitors actor) ref))
     t))
 
@@ -387,7 +387,7 @@
             (monitor-exit-reason monitor-exit))))
 
 (defun notify-monitors (actor exit)
-  (bt:with-lock-held ((actor-monitor-lock actor))
+  (bt:with-recursive-lock-held ((actor-monitor-lock actor))
     (loop for monitor in (actor-monitors actor)
        do (send (monitor-observer monitor)
                 (make-monitor-exit :monitor monitor
