@@ -45,9 +45,13 @@
 ;; Really meant for internal use of the core actor package.
 (defun log-crash (actor exit)
   (typecase exit
+    (actor-shutdown nil)
+    (actor-completion nil)
     (actor-kill (warn "Actor ~a killed." actor))
     (actor-error (error "Actor ~a shutting down due to error: ~a"
-                        actor (actor-exit-reason exit)))))
+                        actor (actor-exit-reason exit)))
+    (actor-exit (warn "Actor ~a exited abnormally: ~a"
+                      actor (actor-exit-reason exit)))))
 
 ;;;
 ;;; Server protocol implementation
