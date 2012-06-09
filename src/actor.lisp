@@ -63,13 +63,13 @@
 (defvar *current-actor* nil)
 
 (defstruct actor
-  (mailbox (memento-mori.mailbox:make-mailbox))
-  (monitor-lock (bt:make-lock))
+  (mailbox (memento-mori.mailbox:make-mailbox) :read-only t)
+  (monitor-lock (bt:make-lock) :read-only t)
   monitors
   name
   named-p
   links
-  (exit-lock (bt:make-lock))
+  (exit-lock (bt:make-lock) :read-only t)
   trap-exits-setting
   thread
   function)
@@ -327,7 +327,9 @@
 ;;;
 (defvar *link-lock* (bt:make-lock))
 
-(defstruct link-exit linked-actor reason)
+(defstruct link-exit
+  (linked-actor nil :read-only t)
+  (reason nil :read-only t))
 (defmethod print-object ((link-exit link-exit) stream)
   (print-unreadable-object (link-exit stream :type t :identity t)
     (format stream "[~S]"
@@ -369,7 +371,9 @@
 ;;;
 ;;; Monitors
 ;;;
-(defstruct (monitor (:predicate monitorp)) observer monitored-actor)
+(defstruct (monitor (:predicate monitorp))
+  (observer nil :read-only t)
+  (monitored-actor nil :read-only t))
 (defmethod print-object ((monitor monitor) stream)
   (print-unreadable-object (monitor stream :type t :identity t)
     (format stream "Actor: ~a" (monitor-monitored-actor monitor))))
@@ -393,7 +397,10 @@
       (removef (actor-monitors actor) ref))
     t))
 
-(defstruct monitor-exit monitor actor reason)
+(defstruct monitor-exit
+  (monitor nil :read-only t)
+  (actor nil :read-only t)
+  (reason nil :read-only t))
 (defmethod print-object ((monitor-exit monitor-exit) stream)
   (print-unreadable-object (monitor-exit stream :type t :identity t)
     (format stream "[~S]"
