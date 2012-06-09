@@ -26,7 +26,7 @@
   (bt:with-lock-held ((mailbox-lock mailbox))
     (enqueue obj (mailbox-queue mailbox))
     (bt:condition-notify (mailbox-cond-var mailbox)))
-  t)
+  obj)
 
 (define-condition receive-timeout (error) ())
 (defun receive (mailbox &key timeout on-timeout)
