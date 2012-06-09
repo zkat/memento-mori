@@ -44,7 +44,9 @@ CL-USER> (let ((server (mori-srv:start #'make-example-server)))
 CL-USER>
 ```
 
-# Introduction - Remember you must die
+# Introduction
+
+## Remember you must die
 
 `memento-mori` is a library for writing robust, actor-based systems in
 Common Lisp. It draws inspiration from [Erlang/OTP](http://www.erlang.org),
