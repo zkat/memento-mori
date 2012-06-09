@@ -109,7 +109,7 @@
   (when namep
     (check-type name symbol "a valid actor name"))
   (let* ((actor (make-actor :function func :trap-exits-setting trap-exits-p))
-         (monitor (when monitorp (monitor actor))))
+         (monitor (when monitorp (%monitor actor (current-actor) nil))))
     (when namep (register name actor))
     (setf (actor-thread actor)
           (bt:make-thread
@@ -160,7 +160,7 @@
                                            :reason
                                            (#+sbcl sb-sys:allow-with-interrupts
                                             #-sbcl progn
-                                             (when linkp (link actor parent))
+                                             (when linkp (link parent))
                                              (with-interrupts (funcall func))))
 
                          (kill-actor ()
@@ -325,19 +325,24 @@
             (link-exit-type link-exit)
             (link-exit-reason link-exit))))
 
-(defun link (actor &optional (actor2 (current-actor)))
+(defun link (actor &aux (self (current-actor)))
   (let ((actor (ensure-actor actor))
-        (actor2 (ensure-actor actor2)))
+        (self (ensure-actor self)))
     (bt:with-recursive-lock-held (*link-lock*)
-      (pushnew actor (actor-links actor2))
-      (pushnew actor2 (actor-links actor)))))
+      (assert (actor-alive-p actor) ()
+              "Cannot link to a dead actor.")
+      (pushnew actor (actor-links self))
+      (pushnew self (actor-links actor)))))
 
-(defun unlink (actor &optional (actor2 (current-actor)))
+(defun unlink (actor &aux (self (current-actor)))
   (let ((actor (ensure-actor actor))
-        (actor2 (ensure-actor actor2)))
+        (self (ensure-actor self)))
     (bt:with-recursive-lock-held (*link-lock*)
-      (removef (actor-links actor) actor2)
-      (removef (actor-links actor2) actor))))
+      (assert (actor-alive-p actor)
+              ()
+              "Cannot unlink from a dead actor.")
+      (removef (actor-links actor) self)
+      (removef (actor-links self) actor))))
 
 (defun send-exit-message (actor exit)
   (send actor (make-link-exit
@@ -362,13 +367,18 @@
   (print-unreadable-object (monitor stream :type t :identity t)
     (format stream "Actor: ~a" (monitor-monitored-actor monitor))))
 
-(defun monitor (actor &optional (observer (current-actor)))
+(defun %monitor (actor observer confirm-alive)
   (let ((actor (ensure-actor actor))
         (observer (ensure-actor observer)))
     (bt:with-recursive-lock-held ((actor-monitor-lock actor))
+      (when confirm-alive
+        (assert (actor-alive-p actor) () "Cannot monitor a dead actor."))
       (let ((ref (make-monitor :observer observer :monitored-actor actor)))
         (push ref (actor-monitors actor))
         ref))))
+
+(defun monitor (actor &aux (self (current-actor)))
+  (%monitor actor self t))
 
 (defun demonitor (ref)
   (let ((actor (monitor-monitored-actor ref)))
