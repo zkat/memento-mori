@@ -120,7 +120,9 @@
             (cons '*current-actor* actor)
             (cons '*debug-on-error-p* *debug-on-error-p*)
             bt:*default-special-bindings*)))
-    (values actor monitor)))
+    (if monitor
+        (values actor monitor)
+        actor)))
 
 (defvar *log-settings-lock* (bt:make-lock))
 (let ((log-crashes-p t))
