@@ -52,7 +52,11 @@
                   (mori-srv:exit-server-loop 'bad-note))
                  (t
                   (report "~a produced sound!" name)))))
-    (mori-timer:send-after (random 1.0) 'play)))
+    (mori-timer:send-after (random 0.75) 'play)))
+
+(defmethod mori-srv:on-message ((musician musician) (message link-exit))
+  (report "The band supervisor walked out on ~a!" (musician-name musician))
+  (mori-srv:exit-server-loop 'supervisor-quit))
 
 (defmethod mori-srv:on-shutdown ((musician musician) reason)
   (report "~a going away because of ~a (~a)"
