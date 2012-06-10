@@ -20,14 +20,16 @@
               make-child-spec (key
                                init-function
                                &key
-                               (restart-on-completion-p t)
-                               remove-after-shutdown-p
+                               (restart-on-normal-exit-p t)
+                               (restart-on-crash-p t)
+                               remove-after-exit-p
                                shutdown-timeout
                                supervisorp)))
   key
   init-function
-  restart-on-completion-p
-  remove-after-shutdown-p
+  restart-on-crash-p
+  restart-on-normal-exit-p
+  remove-after-exit-p
   shutdown-timeout
   supervisorp)
 
@@ -77,14 +79,25 @@
   (when-let (child (find (link-exit-from exit)
                          (hash-table-values (supervisor-children sup))
                          :key #'supervisor-child-actor))
-    (if (> (length (add-restart sup)) (supervisor-max-restarts sup))
-        (loop for child in (hash-table-values (supervisor-children sup))
-           do (exit 'shutdown (supervisor-child-actor child))
-           finally (exit 'too-many-restarts))
-        (let ((child-spec (supervisor-child-child-spec child)))
-          (setf (supervisor-child-actor child) (%start-child child-spec))
-          (mori-log:info "Supervisor child with child spec ~a restarted after exit with ~a."
-                         child-spec exit)))))
+    (when (child-restartable-p child exit)
+      (maybe-restart-child sup child))))
+
+(defun child-restartable-p (child exit)
+  (let ((child-spec (supervisor-child-child-spec child)))
+    (case (exit-reason exit)
+      ((finished shutdown)
+       (child-spec-restart-on-normal-exit-p child-spec))
+      (otherwise
+       (child-spec-restart-on-crash-p child-spec)))))
+
+(defun maybe-restart-child (sup child)
+  (if (> (length (add-restart sup)) (supervisor-max-restarts sup))
+      (loop for child in (hash-table-values (supervisor-children sup))
+         do (exit 'shutdown (supervisor-child-actor child))
+         finally (exit 'too-many-restarts))
+      (let ((child-spec (supervisor-child-child-spec child)))
+        (setf (supervisor-child-actor child) (%start-child child-spec))
+        (mori-log:info "Supervisor child with child spec ~a restarted." child-spec))))
 
 (defcall count-children ()
     (supervisor supervisor)
