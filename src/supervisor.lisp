@@ -60,20 +60,37 @@
                           (%start-child (supervisor-child-child-spec child))))
                   (supervisor-children supervisor)))
 
-(defun add-restart (supervisor)
-  (let ((now (now)))
-    (setf (supervisor-restarts supervisor)
-          (cons now
-                (loop
-                   for restart in (supervisor-restarts supervisor)
-                   while (in-period-p
-                          restart
-                          now
-                          (supervisor-max-restart-time supervisor))
-                   collect restart)))))
+(defcall count-children ()
+    (supervisor supervisor)
+  (hash-table-count (supervisor-children supervisor)))
 
-(defun in-period-p (from to period)
-  (< (- to from) period))
+(defcall list-children ()
+    (supervisor supervisor)
+  (hash-table-values (supervisor-children supervisor)))
+
+(defcall start-child (child-spec)
+    (supervisor supervisor)
+  (push
+   (make-supervisor-child :child-spec child-spec
+                          :actor (%start-child child-spec))
+   (supervisor-children supervisor))
+  t)
+
+(defun %start-child (child-spec)
+  (funcall (child-spec-init-function child-spec)))
+
+(defcall terminate-child (child)
+    (supervisor supervisor)
+  ;; TODO
+  child)
+
+;;;
+;;; Restarting
+;;;
+(defcall restart-child (child)
+    (supervisor supervisor)
+  ;; TODO
+  child)
 
 (defmethod mori-srv:on-message ((sup supervisor) (exit link-exit))
   (when-let (child (find (link-exit-from exit)
@@ -99,34 +116,20 @@
         (setf (supervisor-child-actor child) (%start-child child-spec))
         (mori-log:info "Supervisor child with child spec ~a restarted." child-spec))))
 
-(defcall count-children ()
-    (supervisor supervisor)
-  (hash-table-count (supervisor-children supervisor)))
+(defun add-restart (supervisor)
+  (let ((now (now)))
+    (setf (supervisor-restarts supervisor)
+          (cons now
+                (loop
+                   for restart in (supervisor-restarts supervisor)
+                   while (in-period-p
+                          restart
+                          now
+                          (supervisor-max-restart-time supervisor))
+                   collect restart)))))
 
-(defcall list-children ()
-    (supervisor supervisor)
-  (hash-table-values (supervisor-children supervisor)))
-
-(defun %start-child (child-spec)
-  (funcall (child-spec-init-function child-spec)))
-
-(defcall start-child (child-spec)
-    (supervisor supervisor)
-  (push
-   (make-supervisor-child :child-spec child-spec
-                          :actor (%start-child child-spec))
-   (supervisor-children supervisor))
-  t)
-
-(defcall terminate-child (child)
-    (supervisor supervisor)
-  ;; TODO
-  child)
-
-(defcall restart-child (child)
-    (supervisor supervisor)
-  ;; TODO
-  child)
+(defun in-period-p (from to period)
+  (< (- to from) period))
 
 (defun now ()
   (/ (get-internal-real-time) internal-time-units-per-second))
