@@ -144,7 +144,7 @@
       log-crashes-p)))
 
 (defvar *debugger-lock* (bt:make-lock))
-
+(defvar *unhandled-exit* (gensym "UNHANDLED-EXIT"))
 (defun make-actor-function (actor func linkp namep name debugp
                             &aux (parent (current-actor)))
   (lambda ()
@@ -153,27 +153,28 @@
         (unwind-protect
              (setf exit
                    (block run-actor-function
-                     (handler-bind ((exit (lambda (exit)
-                                            (return-from run-actor-function exit)))
-                                    (%killed (lambda (killed)
-                                               (declare (ignore killed))
+                     (catch *unhandled-exit*
+                       (handler-bind ((exit (lambda (exit)
+                                              (return-from run-actor-function exit)))
+                                      (%killed (lambda (killed)
+                                                 (declare (ignore killed))
+                                                 (return-from run-actor-function
+                                                   (make-condition 'exit
+                                                                   :reason 'killed))))
+                                      (error (lambda (e)
+                                               (when debugp
+                                                 (bt:with-recursive-lock-held (*debugger-lock*)
+                                                   (invoke-debugger e)))
                                                (return-from run-actor-function
-                                                 (make-condition 'exit
-                                                                 :reason 'killed))))
-                                    (error (lambda (e)
-                                             (when debugp
-                                               (bt:with-recursive-lock-held (*debugger-lock*)
-                                                 (invoke-debugger e)))
-                                             (return-from run-actor-function
-                                               (make-condition 'exit :reason e)))))
-                       (restart-case
-                           (#+sbcl sb-sys:allow-with-interrupts
-                                   #-sbcl progn
-                                   (when linkp (link parent))
-                                   (with-interrupts (funcall func))
-                                   (make-condition 'exit :reason 'finished))
-                         (kill-actor ()
-                           (kill (current-actor)))))))
+                                                 (make-condition 'exit :reason e)))))
+                         (restart-case
+                             (#+sbcl sb-sys:allow-with-interrupts
+                                     #-sbcl progn
+                                     (when linkp (link parent))
+                                     (with-interrupts (funcall func))
+                                     (make-condition 'exit :reason 'finished))
+                           (kill-actor ()
+                             (kill (current-actor))))))))
           (when namep (unregister name nil))
           (notify-links actor exit)
           (notify-monitors actor exit)
@@ -231,7 +232,7 @@
          (bt:interrupt-thread (actor-thread actor)
                               (lambda ()
                                 (without-interrupts
-                                  (signal exit)))))))
+                                  (throw *unhandled-exit* exit)))))))
 
 (defun exit (reason &optional (actor (current-actor)))
   (signal-exit actor (if (eq 'kill reason)
