@@ -109,3 +109,13 @@
   (spawn (lambda ()
            (mori-timer:call-after 1 (curry #'print "test"))
            (loop (sleep 1)))))
+
+(defun test-remote-exits ()
+  (let ((killme (spawn (lambda ()
+                         (handler-case
+                             (loop (sleep 0.5))
+                           (exit (e)
+                             (mori-log:error "I should not have caught ~a!" e)))))))
+    (spawn (lambda ()
+             ;; Remote exits are uncatchable. You *must* trap exits.
+             (exit 'die killme)))))
