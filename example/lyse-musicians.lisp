@@ -85,7 +85,7 @@
   (mori-sup:start-supervisor
    :name 'band-supervisor
    :max-restarts 3 ; Number of restarts allowed...
-   :max-restart-time 60 ; ...within these many seconds
+   :max-restart-time 60 ; ...within this many seconds
    :initial-child-specs
    (flet ((child (role skill)
             (mori-sup:make-child-spec role (curry #'start-musician role skill))))
