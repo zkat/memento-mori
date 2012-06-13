@@ -4,7 +4,9 @@
   (:nicknames #:mori-sup)
   (:export
    #:start-supervisor
-   #:make-child-spec))
+   #:make-child-spec
+   #:count-children
+   #:list-children))
 (cl:in-package #:memento-mori.supervisor)
 
 (defstruct supervisor
@@ -79,7 +81,7 @@
 (defun %start-child (child-spec)
   (funcall (child-spec-init-function child-spec)))
 
-(defcall terminate-child (child)
+(defcall shutdown-child (child)
     (supervisor supervisor)
   ;; TODO
   child)
@@ -111,7 +113,7 @@
   (if (> (length (add-restart sup)) (supervisor-max-restarts sup))
       (loop for child in (hash-table-values (supervisor-children sup))
          do (exit 'shutdown (supervisor-child-actor child))
-         finally (exit 'too-many-restarts))
+         finally (exit 'restart-limit-exceeded))
       (let ((child-spec (supervisor-child-child-spec child)))
         (setf (supervisor-child-actor child) (%start-child child-spec))
         (mori-log:info "Supervisor child with child spec ~a restarted." child-spec))))
