@@ -95,11 +95,14 @@
   child)
 
 (defmethod mori-srv:on-message ((sup supervisor) (exit link-exit))
-  (when-let (child (find (link-exit-from exit)
-                         (hash-table-values (supervisor-children sup))
-                         :key #'supervisor-child-actor))
+  (if-let (child (find (link-exit-from exit)
+                       (hash-table-values (supervisor-children sup))
+                       :key #'supervisor-child-actor))
     (when (child-restartable-p child exit)
-      (maybe-restart-child sup child))))
+      (maybe-restart-child sup child))
+    (when (eq 'shutdown (link-exit-reason exit))
+      (shutdown-all-children sup)
+      (exit 'shutdown))))
 
 (defun child-restartable-p (child exit)
   (let ((child-spec (supervisor-child-child-spec child)))
@@ -110,13 +113,17 @@
        (child-spec-restart-on-crash-p child-spec)))))
 
 (defun maybe-restart-child (sup child)
-  (if (> (length (add-restart sup)) (supervisor-max-restarts sup))
-      (loop for child in (hash-table-values (supervisor-children sup))
-         do (exit 'shutdown (supervisor-child-actor child))
-         finally (exit 'restart-limit-exceeded))
-      (let ((child-spec (supervisor-child-child-spec child)))
-        (setf (supervisor-child-actor child) (%start-child child-spec))
-        (mori-log:info "Supervisor child with child spec ~a restarted." child-spec))))
+  (cond ((> (length (add-restart sup)) (supervisor-max-restarts sup))
+         (shutdown-all-children sup)
+         (exit 'restart-limit-exceeded))
+        (t
+         (let ((child-spec (supervisor-child-child-spec child)))
+           (setf (supervisor-child-actor child) (%start-child child-spec))
+           (mori-log:info "Supervisor child with child spec ~a restarted." child-spec)))))
+
+(defun shutdown-all-children (sup)
+  (loop for child in (hash-table-values (supervisor-children sup))
+     do (exit 'shutdown (supervisor-child-actor child))))
 
 (defun add-restart (supervisor)
   (let ((now (now)))
@@ -130,6 +137,9 @@
                           (supervisor-max-restart-time supervisor))
                    collect restart)))))
 
+;;;
+;;; Utils
+;;;
 (defun in-period-p (from to period)
   (< (- to from) period))
 
