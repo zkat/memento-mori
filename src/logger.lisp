@@ -44,6 +44,6 @@
   (finish-output stream))
 
 ;; Start the logger on load.
-#+mori-log-on-load
+#-no-mori-logger
 (eval-when (:load-toplevel :execute)
   (ensure-logger))
