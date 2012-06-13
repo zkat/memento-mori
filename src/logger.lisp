@@ -1,20 +1,3 @@
-(cl:defpackage #:memento-mori.logger
-  (:use #:cl #:alexandria #:memento-mori #:memento-mori.utils)
-  (:nicknames #:mori-log)
-  (:shadow #:warn #:error #:debug)
-  (:export
-
-   #:ensure-logger
-   #:log-crash
-   
-   #:emergency
-   #:alert
-   #:critical
-   #:error
-   #:warn
-   #:notice
-   #:info
-   #:debug))
 (cl:in-package #:memento-mori.logger)
 
 (defmacro defloglevel (level-name stream)
@@ -29,8 +12,8 @@
 (defun ensure-logger ()
   (handler-case
       (mori-srv:start #'make-logger :name 'logger)
-    (actor-already-exists ()
-      (find-actor 'logger))))
+    (mori:actor-already-exists ()
+      (mori:find-actor 'logger))))
 
 ;; Levels taken from man syslog
 (defloglevel emergency *error-output*)
@@ -41,20 +24,6 @@
 (defloglevel notice *debug-io*)
 (defloglevel info *debug-io*)
 (defloglevel debug *debug-io*)
-
-;; Really meant for internal use of the core actor package.
-(defun log-crash (actor exit &aux (reason (exit-reason exit)))
-  (cond ((eq 'killed reason)
-         (warn "Actor ~a killed." actor))
-        ((eq 'error reason)
-         (error "Actor ~a shutting down due to error: ~a"
-                actor (exit-reason exit)))
-        ((or (eq 'shutdown reason)
-             (eq 'finished reason))
-         nil)
-        (t
-         (warn "Actor ~a exited abnormally: ~a"
-               actor (exit-reason exit)))))
 
 ;;;
 ;;; Server protocol implementation
@@ -75,5 +44,6 @@
   (finish-output stream))
 
 ;; Start the logger on load.
+#+mori-log-on-load
 (eval-when (:load-toplevel :execute)
   (ensure-logger))

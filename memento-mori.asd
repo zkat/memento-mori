@@ -12,6 +12,7 @@
             :components
             ((:file "utils")
              (:file "mailbox")
+             (:file "logger-package")
              (:file "actor")
              (:file "timer")
              (:file "server")
