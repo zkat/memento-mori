@@ -62,8 +62,8 @@ monitoring. Running things across multiple processors is really just a
 bonus.
 
 This library is still under heavy development, and the API is not yet
-documented. If you're curious enough, you can check out the test/ directory
-for some interesting examples. Feel free to contact me with questions or
+documented. If you're curious enough, you can check out the example/
+directory for som eye candy. Feel free to contact me with questions or
 ideas.
 
 # Packages
