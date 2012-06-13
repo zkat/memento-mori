@@ -182,10 +182,18 @@
             (log-crash actor exit))
           (with-all-actors-lock (deletef *all-actors* actor :test #'eq)))))))
 
-(defun log-crash (actor exit)
-  (when-let (pkg (find-package '#:memento-mori.logger))
-    (when-let (symbol (find-symbol (string '#:log-crash) pkg))
-      (funcall symbol actor exit))))
+(defun log-crash (actor exit &aux (reason (exit-reason exit)))
+  (cond ((eq 'killed reason)
+         (mori-log:warn "Actor ~a killed." actor))
+        ((eq 'error reason)
+         (mori-log:error "Actor ~a shutting down due to error: ~a"
+                         actor (exit-reason exit)))
+        ((or (eq 'shutdown reason)
+             (eq 'finished reason))
+         nil)
+        (t
+         (mori-log:warn "Actor ~a exited abnormally: ~a"
+                        actor (exit-reason exit)))))
 
 ;;;
 ;;; Messaging
