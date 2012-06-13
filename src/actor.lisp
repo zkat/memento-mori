@@ -108,6 +108,10 @@
 
 (defun all-actors ()
   (with-all-actors-lock (copy-list *all-actors*)))
+(defun %add-actor (actor)
+  (with-all-actors-lock (push actor *all-actors*)))
+(defun %delete-actor (actor)
+  (with-all-actors-lock (deletef *all-actors* actor :test #'eq)))
 
 (defun spawn (func &key
               linkp monitorp trap-exits-p
@@ -126,21 +130,21 @@
             (cons '*current-actor* actor)
             (cons '*debug-on-error-p* *debug-on-error-p*)
             bt:*default-special-bindings*)))
-    (with-all-actors-lock (push actor *all-actors*))
+    (%add-actor actor)
     (if monitor
         (values actor monitor)
         actor)))
 
-(defvar *log-settings-lock* (bt:make-lock))
-(let ((log-crashes-p t))
+(let ((log-crashes-p t)
+      (log-settings-lock (bt:make-lock)))
   (defun enable-crash-logging ()
-    (bt:with-recursive-lock-held (*log-settings-lock*)
+    (bt:with-recursive-lock-held (log-settings-lock)
       (setf log-crashes-p t)))
   (defun disable-crash-logging ()
-    (bt:with-recursive-lock-held (*log-settings-lock*)
+    (bt:with-recursive-lock-held (log-settings-lock)
       (setf log-crashes-p nil)))
   (defun crash-logging-enabled-p ()
-    (bt:with-recursive-lock-held (*log-settings-lock*)
+    (bt:with-recursive-lock-held (log-settings-lock)
       log-crashes-p)))
 
 (defvar *debugger-lock* (bt:make-lock))
@@ -180,7 +184,7 @@
           (notify-monitors actor exit)
           (when (crash-logging-enabled-p)
             (log-crash actor exit))
-          (with-all-actors-lock (deletef *all-actors* actor :test #'eq)))))))
+          (%delete-actor actor))))))
 
 (defun log-crash (actor exit &aux (reason (exit-reason exit)))
   (cond ((eq 'killed reason)
