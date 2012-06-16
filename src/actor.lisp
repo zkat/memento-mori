@@ -20,6 +20,7 @@
    #:send
    #:receive
    #:receive-cond
+   #:selective-receive
    #:flush-messages
    ;; Exits
    #:exit
@@ -216,6 +217,35 @@
                                                :timeout ,timeout
                                                :on-timeout ,on-timeout)
      ,@clauses))
+
+(defun selective-receive (test &key timeout on-timeout)
+  (memento-mori.mailbox:selective-receive
+   (actor-mailbox (current-actor))
+   test
+   :timeout timeout
+   :on-timeout on-timeout))
+
+;; Example of alternative selective receive macros.
+#+nil
+(defmacro receive-match ((&key timeout on-timeout) &body clauses)
+  (alexandria:with-unique-names (obj)
+    `(mori:selective-receive (lambda (,obj)
+                               (optima:match ,obj
+                                 ;; TODO - desugar WHEN/UNLESS
+                                 ,@(loop for (pattern . body) in clauses
+                                      collect `(,pattern (lambda (,obj)
+                                                           (declare (ignore ,obj))
+                                                           ;; Doing it this
+                                                           ;; way allows
+                                                           ;; declarations
+                                                           ;; related to
+                                                           ;; the
+                                                           ;; THEN-form.
+                                                           (lambda ()
+                                                             ,@body))))))
+                             :timeout ,timeout
+                             :on-timeout ,(when on-timeout
+                                                `(lambda () ,on-timeout)))))
 
 (defun flush-messages ()
   (receive :timeout 0 :on-timeout (lambda () (return-from flush-messages t)))

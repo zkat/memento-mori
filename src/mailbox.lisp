@@ -5,6 +5,7 @@
            #:send
            #:receive-timeout
            #:receive
+           #:selective-receive
            #:receive-cond))
 (in-package #:memento-mori.mailbox)
 
@@ -47,48 +48,54 @@
        unless (queue-empty-p (mailbox-queue mailbox))
        do (return-from do-receive (dequeue (mailbox-queue mailbox))))))
 
-(defun receive-choices (mailbox choices &key timeout on-timeout)
-  ;; TODO - This m-v-l/values-list bullshit is too much. Please don't do it.
+(defun selective-receive (mailbox test &key timeout on-timeout)
   (if timeout
-      (multiple-value-bind (value completedp)
-          (with-timeout timeout
-            (multiple-value-list
-             (do-selective-receive mailbox choices)))
-        (cond (completedp (values-list value))
+      (multiple-value-bind (value callback)
+          (block timer-block
+            (let ((timer (trivial-timers:make-timer
+                          (lambda ()
+                            (return-from timer-block (values nil nil))))))
+              (trivial-timers:schedule-timer timer timeout)
+              (unwind-protect
+                   (do-selective-receive mailbox test)
+                (trivial-timers:unschedule-timer timer))))
+        (cond (callback (funcall callback value))
               (on-timeout (funcall on-timeout))
               (t (error 'receive-timeout))))
-      (do-selective-receive mailbox choices)))
+      (multiple-value-bind (value callback)
+          (do-selective-receive mailbox test)
+        (funcall callback value))))
 
-(defun do-selective-receive (mailbox choices)
-  ;; TODO - Ugly and stupid, but I just need a working prototype for now.
+(defun do-selective-receive (mailbox test)
+  ;; TODO - interrupts might mess with the mailbox contents. An error in
+  ;;        (funcall test item) can also throw the mailbox out of sync. Put
+  ;;        unwind-protects and with-/without-interrupts in the appropriate
+  ;;        places, here.
   (bt:with-lock-held ((mailbox-lock mailbox))
     (let ((q (mailbox-queue mailbox))
-          got-value-p
-          value
+          match
           callback)
-      (loop until got-value-p
-         do (loop for (test . on-success) in choices
-               do (loop for item in (dequeue-all q)
-                     do (if (and (null got-value-p)
-                                 (funcall test item))
-                            (setf got-value-p t
-                                  value item
-                                  callback on-success)
-                            (enqueue item q))))
-         if (null got-value-p)
+      (loop until callback
+         do (loop for item in (dequeue-all q)
+               for maybe-callback = (with-interrupts (funcall test item))
+               when maybe-callback
+               do (setf match item
+                        callback maybe-callback)
+                 (return)
+               else
+               do (enqueue item q))
+         unless callback
          do (bt:condition-wait (mailbox-cond-var mailbox) (mailbox-lock mailbox))
          else
-         do (return-from do-selective-receive (funcall callback value))))))
+         do (return-from do-selective-receive (values match callback))))))
 
 (defmacro receive-cond ((value-var mailbox &key timeout on-timeout) &body clauses)
-  `(receive-choices ,mailbox
-                    (list
-                     ,@(loop for (test . forms) in clauses
-                          collect `(cons (lambda (,value-var)
-                                           (declare (ignorable ,value-var))
-                                           ,test)
-                                         (lambda (,value-var)
-                                           (declare (ignorable ,value-var))
-                                           ,@forms))))
-                    :timeout ,timeout :on-timeout ,(when on-timeout
-                                                     `(lambda () ,on-timeout))))
+  `(selective-receive ,mailbox
+                      (lambda (,value-var)
+                        (cond
+                          ,@(loop for (test . forms) in clauses
+                               collect `(,test (lambda (,value-var)
+                                                 (declare (ignorable ,value-var))
+                                                 ,@forms)))))
+                      :timeout ,timeout :on-timeout ,(when on-timeout
+                                                           `(lambda () ,on-timeout))))
