@@ -32,31 +32,22 @@
 
 (define-condition receive-timeout (error) ())
 (defun receive (mailbox &key timeout on-timeout)
-  (without-interrupts
-    (if timeout
-        (multiple-value-bind (value completedp)
-            (with-timeout timeout
-              (#+sbcl sb-sys:allow-with-interrupts
-               #-sbcl progn
-               (with-interrupts (do-receive mailbox))))
-          (cond (completedp value)
-                (on-timeout (funcall on-timeout))
-                (t (error 'receive-timeout))))
-        (#+sbcl sb-sys:allow-with-interrupts
-         #-sbcl progn
-         (with-interrupts (do-receive mailbox))))))
+  (if timeout
+      (multiple-value-bind (value completedp)
+          (with-timeout timeout
+            (do-receive mailbox))
+        (cond (completedp value)
+              (on-timeout (funcall on-timeout))
+              (t (error 'receive-timeout))))
+      (do-receive mailbox)))
 
 ;; Oy vey, how to do this while still being interrupt-safe? :\
 (defun do-receive (mailbox)
-  (without-interrupts
-    (bt:with-lock-held ((mailbox-lock mailbox))
-      (loop when (queue-empty-p (mailbox-queue mailbox))
-         do (#+sbcl sb-sys:with-interrupts
-             #-sbcl progn
-             (with-interrupts
-               (bt:condition-wait (mailbox-cond-var mailbox) (mailbox-lock mailbox))))
-         unless (queue-empty-p (mailbox-queue mailbox))
-         do (return-from do-receive (dequeue (mailbox-queue mailbox)))))))
+  (bt:with-lock-held ((mailbox-lock mailbox))
+    (loop when (queue-empty-p (mailbox-queue mailbox))
+       do (bt:condition-wait (mailbox-cond-var mailbox) (mailbox-lock mailbox))
+       unless (queue-empty-p (mailbox-queue mailbox))
+       do (return-from do-receive (dequeue (mailbox-queue mailbox))))))
 
 (defun selective-receive (mailbox test &key timeout on-timeout)
   (if timeout
@@ -73,39 +64,31 @@
               (on-timeout (funcall on-timeout))
               (t (error 'receive-timeout))))
       (multiple-value-bind (value callback)
-          (#+sbcl sb-sys:allow-with-interrupts
-           #-sbcl progn
-           (with-interrupts (do-selective-receive mailbox test)))
+          (do-selective-receive mailbox test)
         (funcall callback value))))
 
 (defun do-selective-receive (mailbox test)
-  (without-interrupts
-    (bt:with-lock-held ((mailbox-lock mailbox))
-      (let ((q (mailbox-queue mailbox))
-            match
-            callback)
-        (loop until callback
-           do (let (rest)
-                (unwind-protect
-                     (loop for (item . current-rest) on (dequeue-all q)
-                        for maybe-callback = (#+sbcl sb-sys:allow-with-interrupts
-                                              #-sbcl progn
-                                              (with-interrupts (funcall test item)))
-                        do (setf rest current-rest)
-                        when maybe-callback
-                        do (setf match item
-                                 callback maybe-callback)
-                          (return)
-                        else
-                        do (enqueue item q))
-                  (mapcar (rcurry #'enqueue q) rest)))
-           unless callback
-           do (#+sbcl sb-sys:allow-with-interrupts
-               #-sbcl progn
-               (with-interrupts
-                 (bt:condition-wait (mailbox-cond-var mailbox) (mailbox-lock mailbox))))
-           else
-           do (return-from do-selective-receive (values match callback)))))))
+  (bt:with-lock-held ((mailbox-lock mailbox))
+    (let ((q (mailbox-queue mailbox))
+          match
+          callback)
+      (loop until callback
+         do (let (rest)
+              (unwind-protect
+                   (loop for (item . current-rest) on (dequeue-all q)
+                      for maybe-callback = (funcall test item)
+                      do (setf rest current-rest)
+                      when maybe-callback
+                      do (setf match item
+                               callback maybe-callback)
+                        (return)
+                      else
+                      do (enqueue item q))
+                (mapcar (rcurry #'enqueue q) rest)))
+         unless callback
+         do (bt:condition-wait (mailbox-cond-var mailbox) (mailbox-lock mailbox))
+         else
+         do (return-from do-selective-receive (values match callback))))))
 
 (defmacro receive-cond ((value-var mailbox &key timeout on-timeout) &body clauses)
   `(selective-receive ,mailbox
