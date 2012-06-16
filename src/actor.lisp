@@ -225,25 +225,29 @@
 
 ;; Example of alternative selective receive macros.
 #+nil
-(defmacro receive-match ((&key timeout on-timeout) &body clauses)
+(defmacro receive-match (() &body clauses &aux timeout on-timeout)
   (alexandria:with-unique-names (obj)
-    `(mori:selective-receive (lambda (,obj)
-                               (optima:match ,obj
-                                 ;; TODO - desugar WHEN/UNLESS
-                                 ,@(loop for (pattern . body) in clauses
-                                      collect `(,pattern (lambda (,obj)
-                                                           (declare (ignore ,obj))
-                                                           ;; Doing it this
-                                                           ;; way allows
-                                                           ;; declarations
-                                                           ;; related to
-                                                           ;; the
-                                                           ;; THEN-form.
-                                                           (lambda ()
-                                                             ,@body))))))
-                             :timeout ,timeout
-                             :on-timeout ,(when on-timeout
-                                                `(lambda () ,on-timeout)))))
+    `(mori:selective-receive
+      (lambda (,obj)
+        (optima:match ,obj
+          ;; TODO - desugar WHEN/UNLESS
+          ,@(loop for (pattern . body) in clauses
+               if (and (symbolp pattern)
+                       (string-equal 'after pattern))
+               do (when on-timeout
+                    (warn "Multiple AFTER clauses in RECEIVE-MATCH"))
+                 (setf timeout (car body)
+                       on-timeout `(lambda () ,@(cdr body)))
+               else
+               collect `(,pattern (lambda (,obj)
+                                    (declare (ignore ,obj))
+                                    ;; Doing it this way allows
+                                    ;; declarations related to the
+                                    ;; THEN-form.
+                                    (lambda ()
+                                      ,@body))))))
+      :timeout ,timeout
+      :on-timeout ,on-timeout)))
 
 (defun flush-messages ()
   (receive :timeout 0 :on-timeout (lambda () (return-from flush-messages t)))
