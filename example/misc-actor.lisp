@@ -96,9 +96,11 @@
              (receive-cond (msg)
                ((eq msg 'first)
                 (print "Got the first message")))
-             (receive-cond (msg :timeout 5 :on-timeout (print "Timed out waiting for anything-else."))
+             (receive-cond (msg)
                ((eq msg 'anything-else)
-                (print "Got something unexpected.")))
+                (print "Got something unexpected."))
+               (after 5
+                (print "Timed out waiting for anything-else.")))
              (print
               (multiple-value-list
                (receive-cond (msg)
