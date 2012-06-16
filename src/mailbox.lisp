@@ -114,13 +114,19 @@
          else
          do (return-from do-selective-receive (values match callback))))))
 
-(defmacro receive-cond ((value-var mailbox &key timeout on-timeout) &body clauses)
+(defmacro receive-cond ((value-var mailbox) &body clauses &aux timeout on-timeout)
   `(selective-receive ,mailbox
                       (lambda (,value-var)
                         (cond
                           ,@(loop for (test . forms) in clauses
+                               if (and (symbolp test)
+                                       (string-equal 'after test))
+                               do (when on-timeout
+                                    (warn "Multiple AFTER clauses in a RECEIVE-COND."))
+                                 (setf timeout (car forms)
+                                       on-timeout `(lambda () ,@(cdr forms)))
+                               else
                                collect `(,test (lambda (,value-var)
                                                  (declare (ignorable ,value-var))
                                                  ,@forms)))))
-                      :timeout ,timeout :on-timeout ,(when on-timeout
-                                                           `(lambda () ,on-timeout))))
+                      :timeout ,timeout :on-timeout ,on-timeout))

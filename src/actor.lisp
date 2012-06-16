@@ -211,11 +211,9 @@
                                 :timeout timeout
                                 :on-timeout on-timeout))
 
-(defmacro receive-cond ((value-var &key timeout on-timeout)
+(defmacro receive-cond ((value-var)
                         &body clauses)
-  `(memento-mori.mailbox:receive-cond (,value-var (actor-mailbox (current-actor))
-                                               :timeout ,timeout
-                                               :on-timeout ,on-timeout)
+  `(memento-mori.mailbox:receive-cond (,value-var (actor-mailbox (current-actor)))
      ,@clauses))
 
 (defun selective-receive (test &key timeout on-timeout)
