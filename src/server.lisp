@@ -153,8 +153,9 @@
                `((defun ,name ,(if server-form
                                    '(&rest args)
                                    `(,server-var &rest args))
-                   ;; TODO - instead of &rest args, parse the lambda-list so we get nice minibuffer
-                   ;;        hints for these functions.
+                   ;; TODO - instead of &rest args, parse the lambda-list
+                   ;;        so we get nice minibuffer hints for these
+                   ;;        functions.
                    (call ,(or server-form server-var)
                          ',name args
                          ,@(when timeoutp `(:timeout ,timeout))))))
