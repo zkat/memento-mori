@@ -115,7 +115,8 @@
 
 (defvar +defer-call-reply+ (gensym "DEFER-CALL-REPLY"))
 (defun defer-call-reply ()
-  (throw +defer-call-reply+ nil))
+  (ignore-errors (throw +defer-call-reply+ nil))
+  (error "DEFER-CALL-REPLY must be called within ON-CALL."))
 
 (defparameter *call-timeout* 5)
 
