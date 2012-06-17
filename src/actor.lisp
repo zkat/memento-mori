@@ -1,6 +1,7 @@
 (defpackage #:memento-mori
   (:use #:cl #:alexandria #:memento-mori.utils)
   (:import-from #:memento-mori.mailbox #:receive-timeout)
+  (:import-from #:bordeaux-threads #:*default-special-bindings*)
   (:nicknames #:mori)
   (:export
    ;; Debugging
@@ -10,6 +11,7 @@
    #:crash-logging-enabled-p
    ;; Actors
    #:current-actor
+   #:*default-special-bindings*
    #:actor
    #:all-actors
    #:actor-alive-p
@@ -106,8 +108,9 @@
   (with-all-actors-lock (deletef *all-actors* actor :test #'eq)))
 
 (defun spawn (func &key
-              linkp monitorp trap-exits-p
-              (name nil namep) (debugp *debug-on-error-p*))
+                     linkp monitorp trap-exits-p
+                     (name nil namep) (debugp *debug-on-error-p*)
+                     (initial-bindings *default-special-bindings*))
   "Executes `function` within the scope of a new actor thread. The various
 keyword arguments to `spawn` allow certain operations to take effect
 immediately/atomically on actor creation, instead of risking an actor dying
@@ -124,6 +127,8 @@ monitoring will fail if the thread calling `spawn` is not an actor thread.
   * `trap-exits-p` -- If true, the new actor will immediately begin
     trapping remote exit signals.
   * `name` -- A symbol to use to globally register the new actor.
+  * `initial-bindings` -- An alist of `(symbol . value)` to use as the
+     initial dynamic variable bindings for the new actor.
   * `debugp` -- If true, `invoke-debugger` will be called on unhandled
     errors. The `debugp` option will be inherited by any actors created by
     the new actor, and any actors those actors create (and `:debugp nil`
@@ -141,7 +146,7 @@ monitoring will fail if the thread calling `spawn` is not an actor thread.
            (list*
             (cons '*current-actor* actor)
             (cons '*debug-on-error-p* *debug-on-error-p*)
-            bt:*default-special-bindings*)))
+            initial-bindings)))
     (%add-actor actor)
     (if monitor
         (values actor monitor)

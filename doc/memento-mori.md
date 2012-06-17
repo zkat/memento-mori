@@ -19,7 +19,7 @@ enforced in the same way, so a bit more prudence is required while using
 
 ### Actors dictionary
 
-*[function]* `spawn function &key linkp monitorp trap-exits-p name debugp`
+*[function]* `spawn function &key linkp monitorp trap-exits-p name initial-bindings debugp`
 
 Executes `function` within the scope of a new actor thread. The various
 keyword arguments to `spawn` allow certain operations to take effect
@@ -37,6 +37,8 @@ monitoring will fail if the thread calling `spawn` is not an actor thread.
   * `trap-exits-p` -- If true, the new actor will immediately begin
     trapping remote exit signals.
   * `name` -- A symbol to use to globally register the new actor.
+  * `initial-bindings` -- An alist of `(symbol . value)` to use as the
+     initial dynamic variable bindings for the new actor.
   * `debugp` -- If true, `invoke-debugger` will be called on unhandled
     errors. The `debugp` option will be inherited by any actors created by
     the new actor, and any actors those actors create (and `:debugp nil`

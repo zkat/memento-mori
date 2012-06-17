@@ -69,14 +69,17 @@
                       (on-message driver msg))))
       (on-shutdown driver (or reason (make-condition 'exit :reason 'unknown))))))
 
-(defun start (driver-function &key linkp monitorp trap-exits-p
-              (name nil namep)
-              (debugp *debug-on-error-p*))
+(defun start (driver-function &key
+                                linkp monitorp trap-exits-p
+                                (name nil namep)
+                                (initial-bindings *default-special-bindings*)
+                                (debugp *debug-on-error-p*))
   (apply #'spawn
          (lambda () (enter-server-loop (funcall driver-function)))
          :linkp linkp
          :monitorp monitorp
          :trap-exits-p trap-exits-p
+         :initial-bindings initial-bindings
          :debugp debugp
          (when namep (list :name name))))
 
