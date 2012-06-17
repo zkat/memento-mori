@@ -25,7 +25,7 @@ it was started with `start`.
 
 ### Server management dictionary
 
-### *[generic function]* `on-init driver`
+#### *[generic function]* `on-init driver`
 
 Called on `driver` when a server enters its server loop. Any initialization
 of the `driver` object or other things should happen here.
@@ -36,12 +36,12 @@ Called on `driver` when the server is exiting for any reason. If the server
 is exiting due to a standard exit or an unhandled error, `reason` will be
 the exit reason. Otherwise, `reason` will have a reason of `'unknown`.
 
-##### *[generic function]* `on-message driver message`
+#### *[generic function]* `on-message driver message`
 
 Called on `driver` when the server receives a non-`call`, non-`cast`
 message. `message` is whatever Lisp object was sent.
 
-###### *[function]* `start driver-function &key linkp monitorp trap-exits-p name initial-bindings debugp`
+##### *[function]* `start driver-function &key linkp monitorp trap-exits-p name initial-bindings debugp`
  
 Creates a new actor and immediately enters a server-loop. `driver-function`
 must be a function whose primary return value is a Lisp object that will be
@@ -50,14 +50,14 @@ function's keyword arguments are passed to `mori:spawn`, and the function
 will return whatever `mori:spawn` returns (either an `actor` or `(values
 actor monitor)`).
 
-*[function]* `enter-server-loop driver`
+##### *[function]* `enter-server-loop driver`
 
 Makes the current actor enter a server loop, using `driver` to dispatch
 server callbacks. Once this function is called, the current actor will
 behave like any other server, although it will not necessarily terminate
 when the server loop is exited (since there may be more code to execute).
 
-*[function]* `exit-server-loop`
+##### *[function]* `exit-server-loop`
 
 Immediately exits from the current server's loop. If `enter-server-loop`
 was used to convert an actor, `enter-server-loop` returns t and actor
