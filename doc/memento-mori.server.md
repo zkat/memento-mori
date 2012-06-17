@@ -25,23 +25,23 @@ it was started with `start`.
 
 ### Server management dictionary
 
-*[generic function]* `on-init driver`
+### *[generic function]* `on-init driver`
 
 Called on `driver` when a server enters its server loop. Any initialization
 of the `driver` object or other things should happen here.
 
-*[generic function]* `on-shutdown driver reason`
+#### *[generic function]* `on-shutdown driver reason`
 
 Called on `driver` when the server is exiting for any reason. If the server
 is exiting due to a standard exit or an unhandled error, `reason` will be
 the exit reason. Otherwise, `reason` will have a reason of `'unknown`.
 
-*[generic function]* `on-message driver message`
+##### *[generic function]* `on-message driver message`
 
 Called on `driver` when the server receives a non-`call`, non-`cast`
 message. `message` is whatever Lisp object was sent.
 
-*[function]* `start driver-function &key linkp monitorp trap-exits-p name initial-bindings debugp`
+###### *[function]* `start driver-function &key linkp monitorp trap-exits-p name initial-bindings debugp`
  
 Creates a new actor and immediately enters a server-loop. `driver-function`
 must be a function whose primary return value is a Lisp object that will be
