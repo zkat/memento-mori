@@ -2,17 +2,20 @@
   (:use #:cl #:alexandria #:memento-mori)
   (:nicknames #:mori-srv)
   (:export
-   ;; API
-   #:start
-   #:enter-server-loop
-   #:exit-server-loop
-   #:unknown
    ;; server protocol
    #:on-init
    #:on-call
    #:on-cast
    #:on-message
    #:on-shutdown
+   ;; API
+   #:start
+   #:enter-server-loop
+   #:exit-server-loop
+   #:unknown
+   ;; Cast
+   #:cast
+   #:defcast
    ;; Call
    #:*call-timeout*
    #:call
@@ -24,17 +27,14 @@
    #:call-reply
    #:call-reply-p
    #:defcall
+   #:call-error
    #:callee-down
-   #:call-timeout
-   ;; Cast
-   #:cast
-   #:defcast))
+   #:call-timeout))
 (cl:in-package #:memento-mori.server)
 
 ;;;
-;;; Server actor
+;;; Protocol
 ;;;
-
 (defgeneric on-init (driver)
   (:method ((driver t)) t))
 (defgeneric on-call (driver request name args)
@@ -52,12 +52,24 @@
 (defgeneric on-shutdown (driver reason)
   (:method ((driver t) (reason t)) t))
 
+;;;
+;;; Basic API
+;;;
 (defvar *in-server-loop-p* nil)
 
-(defun exit-server-loop ()
-  (unless *in-server-loop-p*
-    (error "EXIT-SERVER-LOOP can only be called within the scope of a server loop."))
-  (exit 'exit-server-loop))
+(defun start (driver-function &key
+                                linkp monitorp trap-exits-p
+                                (name nil namep)
+                                (initial-bindings *default-special-bindings*)
+                                (debugp *debug-on-error-p*))
+  (apply #'spawn
+         (lambda () (enter-server-loop (funcall driver-function)))
+         :linkp linkp
+         :monitorp monitorp
+         :trap-exits-p trap-exits-p
+         :initial-bindings initial-bindings
+         :debugp debugp
+         (when namep (list :name name))))
 
 (defun enter-server-loop (driver &aux reason (*in-server-loop-p* t))
   (assert (current-actor) () "ENTER-SERVER-LOOP must be called within the scope of an actor.")
@@ -78,19 +90,43 @@
                       (on-message driver msg))))
       (on-shutdown driver (or reason (make-condition 'exit :reason 'unknown))))))
 
-(defun start (driver-function &key
-                                linkp monitorp trap-exits-p
-                                (name nil namep)
-                                (initial-bindings *default-special-bindings*)
-                                (debugp *debug-on-error-p*))
-  (apply #'spawn
-         (lambda () (enter-server-loop (funcall driver-function)))
-         :linkp linkp
-         :monitorp monitorp
-         :trap-exits-p trap-exits-p
-         :initial-bindings initial-bindings
-         :debugp debugp
-         (when namep (list :name name))))
+(defun exit-server-loop ()
+  (unless *in-server-loop-p*
+    (error "EXIT-SERVER-LOOP can only be called within the scope of a server loop."))
+  (exit 'exit-server-loop))
+
+;;;
+;;; Cast
+;;;
+(defstruct cast-msg name args)
+
+(defun cast (actor name &rest args)
+  (send actor (make-cast-msg :name name :args args))
+  t)
+
+(defmacro defcast (name lambda-list
+                   (server-var
+                    server-specializer
+                    &key
+                    (server-form nil server-form-p)
+                    (define-function-p t))
+                   &body body)
+  (let ((args-var (gensym "ARGS")))
+    `(progn
+       ,@(when define-function-p
+               `((defun ,name ,(if server-form
+                                   '(&rest args)
+                                   `(,server-var &rest args))
+                   (apply #'cast ,(if server-form-p server-form server-var) ',name args))))
+       (defmethod on-cast ((,server-var ,server-specializer)
+                           (,(gensym "NAME") (eql ',name))
+                           ,args-var)
+         (flet ((,name ,lambda-list ,@body))
+           (apply #',name ,args-var)))
+       ',name)))
+
+(defun %handle-cast-msg (driver msg)
+  (on-cast driver (cast-msg-name msg) (cast-msg-args msg)))
 
 ;;;
 ;;; Call
@@ -108,15 +144,6 @@
   (monitor nil :read-only t))
 (defmethod print-object ((req call-request) stream)
   (print-unreadable-object (req stream :type t :identity t)))
-
-(define-condition call-error (error) ())
-(define-condition callee-down (call-error) ())
-(define-condition call-timeout (call-error) ())
-
-(defvar +defer-call-reply+ (gensym "DEFER-CALL-REPLY"))
-(defun defer-call-reply ()
-  (ignore-errors (throw +defer-call-reply+ nil))
-  (error "DEFER-CALL-REPLY must be called within ON-CALL."))
 
 (defparameter *call-timeout* 5)
 
@@ -137,6 +164,11 @@
        (error 'callee-down))
       (after timeout (error 'call-timeout)))))
 
+(defvar +defer-call-reply+ (gensym "DEFER-CALL-REPLY"))
+(defun defer-call-reply ()
+  (ignore-errors (throw +defer-call-reply+ nil))
+  (error "DEFER-CALL-REPLY must be called within ON-CALL."))
+
 (defun reply (request &rest values)
   (send (call-request-caller request)
         (make-call-reply
@@ -145,6 +177,10 @@
 
 (defmacro multiple-value-reply (request multiple-value-form)
   `(multiple-value-call 'reply ,request ,multiple-value-form))
+
+(define-condition call-error (error) ())
+(define-condition callee-down (call-error) ())
+(define-condition call-timeout (call-error) ())
 
 (defun %handle-call-request (driver req)
   (catch +defer-call-reply+
@@ -184,60 +220,3 @@
          (flet ((,name ,lambda-list ,@body))
            (apply #',name ,args-var)))
        ',name)))
-
-;;;
-;;; Cast
-;;;
-(defstruct cast-msg name args)
-(defun cast (actor name &rest args)
-  (send actor (make-cast-msg :name name :args args))
-  t)
-
-(defmacro defcast (name lambda-list
-                   (server-var
-                    server-specializer
-                    &key
-                    (server-form nil server-form-p)
-                    (define-function-p t))
-                   &body body)
-  (let ((args-var (gensym "ARGS")))
-    `(progn
-       ,@(when define-function-p
-               `((defun ,name ,(if server-form
-                                   '(&rest args)
-                                   `(,server-var &rest args))
-                   (apply #'cast ,(if server-form-p server-form server-var) ',name args))))
-       (defmethod on-cast ((,server-var ,server-specializer)
-                           (,(gensym "NAME") (eql ',name))
-                           ,args-var)
-         (flet ((,name ,lambda-list ,@body))
-           (apply #',name ,args-var)))
-       ',name)))
-
-(defun %handle-cast-msg (driver msg)
-  (on-cast driver (cast-msg-name msg) (cast-msg-args msg)))
-
-;;;
-;;; Utils
-;;;
-
-;; TODO - actually use this
-#+nil
-(defmacro defhandler (callback-name call-name
-                      name
-                      (server-var
-                       server-specializer
-                       &key
-                       (define-function-p t)
-                       (timeout nil timeoutp))
-                      lambda-list &body body)
-  (let ((args-var (gensym "ARGS")))
-    `(progn
-       ,@(when define-function-p
-               `((defun ,name (,server-var &rest args)
-                   (,call-name ,server-var ',name args ,@(when timeoutp `(:timeout ,timeout))))))
-       (defmethod ,callback-name ((,server-var ,server-specializer)
-                                  (,(gensym "NAME") (eql ',name))
-                                  ,args-var)
-         (flet ((,name ,lambda-list ,@body))
-           (apply #',name ,args-var)))))  )
