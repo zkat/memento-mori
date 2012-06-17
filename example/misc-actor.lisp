@@ -25,9 +25,9 @@
                 (spawn (lambda () "hi")
                        :linkp t))
            (loop for exit = (receive :timeout 1 :on-timeout (constantly nil))
-              while (link-exit-p exit)
+              while (remote-exit-p exit)
               do (format t "~&Got an exit message with reason: ~s~%"
-                         (link-exit-reason exit)))
+                         (remote-exit-reason exit)))
            (format t "~&Done. Exiting master actor.~%"))
          :trap-exits-p t))
 

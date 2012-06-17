@@ -51,6 +51,12 @@
    It should *not be possible* to handle remote signals with a
    handler-case. Remote signals must be handled with trap-exits, or be
    allowed to kill the process.
+** DONE Remote exit signals
+   Right now, when we (exit 'foo some-actor), that actor receives a
+   link-exit, even though it's not really a link exit.
+   This should be resolved either by adding an exit-signal or remote-exit
+   type that will be sent as the message when regular remote exits happen,
+   or the exit-signal/remote-exit type should replace link-exit.
 ** TODO Recursive locks?
    I sort of defensively spammed with-recursive-lock-held, but this may be
    detrimental to performance (and give the wrong impression

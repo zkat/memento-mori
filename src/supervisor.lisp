@@ -94,13 +94,13 @@
   ;; TODO
   child)
 
-(defmethod mori-srv:on-message ((sup supervisor) (exit link-exit))
-  (if-let (child (find (link-exit-from exit)
+(defmethod mori-srv:on-message ((sup supervisor) (exit remote-exit))
+  (if-let (child (find (remote-exit-from exit)
                        (hash-table-values (supervisor-children sup))
                        :key #'supervisor-child-actor))
     (when (child-restartable-p child exit)
       (maybe-restart-child sup child))
-    (when (eq 'shutdown (link-exit-reason exit))
+    (when (eq 'shutdown (remote-exit-reason exit))
       (shutdown-all-children sup)
       (exit 'shutdown))))
 

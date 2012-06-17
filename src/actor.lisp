@@ -25,6 +25,10 @@
    ;; Exits
    #:exit
    #:exit-reason
+   #:remote-exit
+   #:remote-exit-p
+   #:remote-exit-from
+   #:remote-exit-reason
    #:finished
    #:shutdown
    #:kill
@@ -40,10 +44,6 @@
    ;; Linking
    #:link
    #:unlink
-   #:link-exit
-   #:link-exit-p
-   #:link-exit-from
-   #:link-exit-reason
    ;; Monitoring
    #:monitor
    #:demonitor
@@ -266,6 +266,20 @@
   (print-unreadable-object (exit stream :type t)
     (format stream "~s" (exit-reason exit))))
 
+(defstruct remote-exit
+  (from nil :read-only t)
+  (reason nil :read-only t))
+
+(defmethod print-object ((remote-exit remote-exit) stream)
+  (print-unreadable-object (remote-exit stream :type t)
+    (format stream "~S"
+            (remote-exit-reason remote-exit))))
+
+(defun send-exit-message (actor exit)
+  (send actor (make-remote-exit
+               :from (current-actor)
+               :reason (exit-reason exit))))
+
 (defun signal-exit (actor exit &aux (actor (ensure-actor actor)))
   (cond ((eq actor (current-actor))
          (signal exit))
@@ -368,14 +382,6 @@
 ;;;
 (defvar *link-lock* (bt:make-lock))
 
-(defstruct link-exit
-  (from nil :read-only t)
-  (reason nil :read-only t))
-(defmethod print-object ((link-exit link-exit) stream)
-  (print-unreadable-object (link-exit stream :type t)
-    (format stream "~S"
-            (link-exit-reason link-exit))))
-
 (defun link (actor &aux (self (current-actor)))
   (let ((actor (ensure-actor actor))
         (self (ensure-actor self)))
@@ -394,11 +400,6 @@
               "Cannot unlink from a dead actor.")
       (removef (actor-links actor) self)
       (removef (actor-links self) actor))))
-
-(defun send-exit-message (actor exit)
-  (send actor (make-link-exit
-               :from (current-actor)
-               :reason (exit-reason exit))))
 
 (defun notify-links (actor exit)
   (bt:with-recursive-lock-held (*link-lock*)
