@@ -108,7 +108,7 @@
                                     :name name
                                     :args args)))
     (send actor request)
-    (receive-cond (reply :timeout timeout :on-timeout (error 'call-timeout))
+    (receive-cond (reply)
       ((and (call-reply-p reply)
             (eq (call-reply-request reply) request))
        (demonitor (call-request-monitor request))
@@ -116,7 +116,8 @@
       ((and (monitor-exit-p reply)
             (eq (call-request-monitor request)
                 (monitor-exit-monitor reply)))
-       (error 'callee-down)))))
+       (error 'callee-down))
+      (after timeout (error 'call-timeout)))))
 
 (defun reply (request &rest values)
   (send (call-request-caller request)
