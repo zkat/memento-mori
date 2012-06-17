@@ -63,7 +63,7 @@ bonus.
 
 # Packages
 
-Documentation for individual packages can be found under `docs/{package name}.md`
+Documentation for individual packages can be found under `doc/{package name}.md`
 
 * `memento-mori` (aka `mori`) - Core package including basics of spawning new
   actors, linking, monitoring, registering, and signaling.
