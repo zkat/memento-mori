@@ -17,6 +17,8 @@ compared to Erlang processes. It also means that memory isolation is not
 enforced in the same way, so a bit more prudence is required while using
 `mori`. Not like Erlang is truly shared-nothing, anyway. :)
 
+### Actors dictionary
+
 *[function]* `spawn function &key linkp monitorp trap-exits-p name debugp`
 
 Executes `function` within the scope of a new actor thread. The various
@@ -76,6 +78,8 @@ object) in its mailbox. Messages are processed by `receive` and
 messages from anywhere in the mailbox. It is important to note that `send`
 does *not* copy data, so you're on your own if you decide to mutate objects
 that have been passed around between actors.
+
+### Messaging dictionary
 
 *[function]* `send actor message`
 
@@ -229,6 +233,8 @@ restarted. This is a particular risk in Clozure CL, since its
 implementation of `unwind-protect` wraps the cleanup forms in
 `without-interrupts`.
 
+### Exits dictionary
+
 *[condition]* `exit`
 
 Signaled by local calls to the `exit` function. If unhandled, the actor
@@ -321,6 +327,8 @@ simply receive a message when the actor being monitored exits. A key
 difference between links and monitors is that while only one link can exist
 between two actors, a single actor can monitor another actor multiple
 times.
+
+### Linking and Monitoring dictionary
 
 *[function]* `link actor`
 
