@@ -88,21 +88,6 @@
 (defun actor-alive-p (actor)
   (bt:thread-alive-p (actor-thread (ensure-actor actor))))
 
-(defun %trap-exits-p (actor)
-  (bt:with-recursive-lock-held ((actor-exit-lock (ensure-actor actor)))
-    (actor-trap-exits-setting actor)))
-
-(defun trap-exits-p (&aux (actor (current-actor)))
-  (%trap-exits-p actor))
-
-(defun enable-trap-exits (&aux (actor (current-actor)))
-  (bt:with-recursive-lock-held ((actor-exit-lock actor))
-    (setf (actor-trap-exits-setting actor) t)))
-
-(defun disable-trap-exits (&aux (actor (current-actor)))
-  (bt:with-recursive-lock-held ((actor-exit-lock actor))
-    (setf (actor-trap-exits-setting actor) nil)))
-
 (defvar *all-actors* ())
 (defvar *all-actors-lock* (bt:make-lock))
 (defmacro with-all-actors-lock (&body body)
@@ -301,6 +286,21 @@
 
 (defun kill (&optional (actor (current-actor)))
   (exit 'kill actor))
+
+(defun %trap-exits-p (actor)
+  (bt:with-recursive-lock-held ((actor-exit-lock (ensure-actor actor)))
+    (actor-trap-exits-setting actor)))
+
+(defun trap-exits-p (&aux (actor (current-actor)))
+  (%trap-exits-p actor))
+
+(defun enable-trap-exits (&aux (actor (current-actor)))
+  (bt:with-recursive-lock-held ((actor-exit-lock actor))
+    (setf (actor-trap-exits-setting actor) t)))
+
+(defun disable-trap-exits (&aux (actor (current-actor)))
+  (bt:with-recursive-lock-held ((actor-exit-lock actor))
+    (setf (actor-trap-exits-setting actor) nil)))
 
 (defun break-actor (actor &optional string &rest args)
   (bt:interrupt-thread (actor-thread (ensure-actor actor))
