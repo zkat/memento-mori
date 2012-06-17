@@ -179,7 +179,7 @@
 ;;; Cast
 ;;;
 (defstruct cast-msg name args)
-(defun cast (actor name args)
+(defun cast (actor name &rest args)
   (send actor (make-cast-msg :name name :args args)))
 
 (defmacro defcast (name lambda-list
@@ -195,7 +195,7 @@
                `((defun ,name ,(if server-form
                                    '(&rest args)
                                    `(,server-var &rest args))
-                   (cast ,(or server-form server-var) ',name args))))
+                   (apply #'cast ,(or server-form server-var) ',name args))))
        (defmethod on-cast ((,server-var ,server-class)
                            (,(gensym "NAME") (eql ',name))
                            ,args-var)
