@@ -65,9 +65,9 @@
     (setf (musician-timer musician)
           (mori-timer:send-after 1 'play))))
 
-(defmethod mori-srv:on-message ((musician musician) (link-exit link-exit))
+(defmethod mori-srv:on-message ((musician musician) (remote-exit remote-exit))
   (report "The band  walked out on ~a!" (musician-name musician))
-  (exit (link-exit-reason link-exit)))
+  (exit (remote-exit-reason remote-exit)))
 
 (defmethod mori-srv:on-shutdown ((musician musician) reason)
   (report "~a going away because of ~a (~a)"
