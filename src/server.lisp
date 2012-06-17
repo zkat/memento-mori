@@ -151,7 +151,7 @@
                    (server-var
                     server-class
                     &key
-                    server-form
+                    (server-form nil server-form-p)
                     request
                     (define-function-p t)
                     (timeout nil timeoutp)) &body body)
@@ -164,7 +164,7 @@
                    ;; TODO - instead of &rest args, parse the lambda-list
                    ;;        so we get nice minibuffer hints for these
                    ;;        functions.
-                   (call ,(or server-form server-var)
+                   (call ,(if server-form-p server-form server-var)
                          ',name args
                          ,@(when timeoutp `(:timeout ,timeout))))))
        (defmethod on-call ((,server-var ,server-class)
@@ -186,7 +186,7 @@
                    (server-var
                     server-class
                     &key
-                    server-form
+                    (server-form nil server-form-p)
                     (define-function-p t))
                    &body body)
   (let ((args-var (gensym "ARGS")))
@@ -195,7 +195,7 @@
                `((defun ,name ,(if server-form
                                    '(&rest args)
                                    `(,server-var &rest args))
-                   (apply #'cast ,(or server-form server-var) ',name args))))
+                   (apply #'cast ,(if server-form-p server-form server-var) ',name args))))
        (defmethod on-cast ((,server-var ,server-class)
                            (,(gensym "NAME") (eql ',name))
                            ,args-var)
