@@ -19,6 +19,10 @@
    #:reply
    #:multiple-value-reply
    #:defer-call-reply
+   #:call-request
+   #:call-request-p
+   #:call-reply
+   #:call-reply-p
    #:defcall
    #:callee-down
    #:call-timeout
@@ -94,11 +98,16 @@
 (defstruct call-reply
   (request nil :read-only t)
   (values nil :read-only t))
+(defmethod print-object ((reply call-reply) stream)
+  (print-unreadable-object (reply stream :type t :identity t)))
+
 (defstruct call-request
   (name nil :read-only t)
   (args nil :read-only t)
   (caller nil :read-only t)
   (monitor nil :read-only t))
+(defmethod print-object ((req call-request) stream)
+  (print-unreadable-object (req stream :type t :identity t)))
 
 (define-condition call-error (error) ())
 (define-condition callee-down (call-error) ())
