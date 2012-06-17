@@ -280,12 +280,13 @@
                                   (throw *unhandled-exit* exit)))))))
 
 (defun exit (reason &optional (actor (current-actor)))
-  (signal-exit actor (if (eq 'kill reason)
-                         (make-condition '%killed)
-                         (make-condition 'exit :reason reason))))
+  (signal-exit (ensure-actor actor)
+               (if (eq 'kill reason)
+                   (make-condition '%killed)
+                   (make-condition 'exit :reason reason))))
 
 (defun kill (&optional (actor (current-actor)))
-  (exit 'kill actor))
+  (exit 'kill (ensure-actor actor)))
 
 (defun %trap-exits-p (actor)
   (bt:with-recursive-lock-held ((actor-exit-lock (ensure-actor actor)))
@@ -385,8 +386,7 @@
 (defvar *link-lock* (bt:make-lock))
 
 (defun link (actor &aux (self (current-actor)))
-  (let ((actor (ensure-actor actor))
-        (self (ensure-actor self)))
+  (let ((actor (ensure-actor actor)))
     (bt:with-recursive-lock-held (*link-lock*)
       (assert (actor-alive-p actor) ()
               "Cannot link to a dead actor.")
@@ -394,8 +394,7 @@
       (pushnew self (actor-links actor)))))
 
 (defun unlink (actor &aux (self (current-actor)))
-  (let ((actor (ensure-actor actor))
-        (self (ensure-actor self)))
+  (let ((actor (ensure-actor actor)))
     (bt:with-recursive-lock-held (*link-lock*)
       (assert (actor-alive-p actor)
               ()
