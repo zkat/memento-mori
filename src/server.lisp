@@ -190,7 +190,8 @@
 ;;;
 (defstruct cast-msg name args)
 (defun cast (actor name &rest args)
-  (send actor (make-cast-msg :name name :args args)))
+  (send actor (make-cast-msg :name name :args args))
+  t)
 
 (defmacro defcast (name lambda-list
                    (server-var
