@@ -61,12 +61,9 @@ like actor spawning, messaging, and inter-actor linking and
 monitoring. Running things across multiple processors is really just a
 bonus.
 
-This library is still under heavy development, and the API is not yet
-documented. If you're curious enough, you can check out the example/
-directory for som eye candy. Feel free to contact me with questions or
-ideas.
-
 # Packages
+
+Documentation for individual packages can be found under `docs/{package name}.md`
 
 * `memento-mori` (aka `mori`) - Core package including basics of spawning new
   actors, linking, monitoring, registering, and signaling.
