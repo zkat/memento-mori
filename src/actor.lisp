@@ -391,7 +391,8 @@
       (assert (actor-alive-p actor) ()
               "Cannot link to a dead actor.")
       (pushnew actor (actor-links self))
-      (pushnew self (actor-links actor)))))
+      (pushnew self (actor-links actor)))
+    (values)))
 
 (defun unlink (actor &aux (self (current-actor)))
   (let ((actor (ensure-actor actor)))
@@ -400,7 +401,8 @@
               ()
               "Cannot unlink from a dead actor.")
       (removef (actor-links actor) self)
-      (removef (actor-links self) actor))))
+      (removef (actor-links self) actor))
+    (values)))
 
 (defun notify-links (actor exit)
   (bt:with-recursive-lock-held (*link-lock*)
@@ -438,7 +440,7 @@
   (let ((actor (monitor-monitored-actor ref)))
     (bt:with-recursive-lock-held ((actor-monitor-lock actor))
       (removef (actor-monitors actor) ref))
-    t))
+    (values)))
 
 (defstruct monitor-exit
   (monitor nil :read-only t)
