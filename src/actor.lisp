@@ -194,7 +194,8 @@ enabled."
                                      (when linkp (link parent))
                                      (with-interrupts (funcall func))
                                      (make-condition 'exit :reason 'finished))
-                           (kill-actor ()
+                           (abort ()
+                             :report "Kill the current actor."
                              (kill (current-actor))))))))
           (when namep (unregister name nil))
           (notify-links actor exit)
