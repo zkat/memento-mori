@@ -41,7 +41,7 @@ the exit reason. Otherwise, `reason` will have a reason of `'unknown`.
 Called on `driver` when the server receives a non-`call`, non-`cast`
 message. `message` is whatever Lisp object was sent.
 
-##### *[function]* `start driver-function &key linkp monitorp trap-exits-p name initial-bindings debugp`
+#### *[function]* `start driver-function &key linkp monitorp trap-exits-p name initial-bindings debugp`
  
 Creates a new actor and immediately enters a server-loop. `driver-function`
 must be a function whose primary return value is a Lisp object that will be
@@ -50,20 +50,19 @@ function's keyword arguments are passed to `mori:spawn`, and the function
 will return whatever `mori:spawn` returns (either an `actor` or `(values
 actor monitor)`).
 
-##### *[function]* `enter-server-loop driver`
+#### *[function]* `enter-server-loop driver`
 
 Makes the current actor enter a server loop, using `driver` to dispatch
 server callbacks. Once this function is called, the current actor will
 behave like any other server, although it will not necessarily terminate
 when the server loop is exited (since there may be more code to execute).
 
-##### *[function]* `exit-server-loop`
+#### *[function]* `exit-server-loop`
 
 Immediately exits from the current server's loop. If `enter-server-loop`
 was used to convert an actor, `enter-server-loop` returns t and actor
 execution continues. It is an error to call `exit-server-loop` outside of
 the scope of a server (meaning, outside the body of a callback method).
-
 
 ## Cast - asynchronous messages
 
@@ -76,13 +75,13 @@ standard sends.
 
 ### Cast dictionary
 
-*[generic function]* `on-cast driver name args`
+#### *[generic function]* `on-cast driver name args`
 
 Called on `driver` whenever a cast message is received. `name` is the name
 of the cast message (for example, a symbol), and `args` is a list
 containing the additional arguments `cast` was called with.
 
-*[function]* `cast actor name &rest args`
+#### *[function]* `cast actor name &rest args`
 
 Sends a cast message to `actor` (an actor designator, not the driver
 associated with that server). `name` should be some kind of identifier to
@@ -90,7 +89,7 @@ distinguish this message. `args` will be sent along with the message as
 arbitrary additional arguments. Returns T as soon as the message has been
 sent.
 
-*[macro]* `defcast name lambda-list (server-var server-specializer &key server-form define-function-p) &body body`
+#### *[macro]* `defcast name lambda-list (server-var server-specializer &key server-form define-function-p) &body body`
  
 Convenience macro for defining a pair of API function + cast
 handler. `defcast` defines an API function roughly expanding to `(defun
@@ -151,7 +150,7 @@ response is ready (if ever).
 
 ### Call dictionary
 
-*[generic function]* `on-call driver request name args`
+#### *[generic function]* `on-call driver request name args`
 
 Called on `driver` whenever a call message is received. `name` is the name
 of the cast message (for example, a symbol), and `args` is a list
@@ -169,7 +168,7 @@ additional replies after the first one will end up as garbage messages in
 the caller's mailbox. These messages will be of type `call-reply`, in the
 interest of allowing cleanup.
 
-*[function]* `call actor name args &key (timeout *call-timeout*)`
+#### *[function]* `call actor name args &key (timeout *call-timeout*)`
 
 Sends a `call` request to `actor`, which should be a valid actor
 designator. `name` is a lisp object used to identify the particular call
@@ -185,14 +184,14 @@ is `*call-timeout*`, which defaults to `5` seconds.
 
 A `callee-down` error is signaled If `actor` exits during the `call`.
 
-*[function]* `defer-call-reply`
+#### *[function]* `defer-call-reply`
 
 Immediately exits from the current `on-call` method. No values will be
 returned to the waiting client, and the server will continue operating
 normally. `reply` and `multiple-value-reply` may be used to respond to the
 call at a later time.
 
-*[function]* `reply request &rest values`
+#### *[function]* `reply request &rest values`
 
 Sends `values` as the values returned from a `call` associated with
 `request`. If `request` has already been responded to, the client may find
@@ -200,7 +199,7 @@ an object of type `call-reply` in its mailbox, which should be thrown
 away. `reply` may be called from any actor, not necessarily the server who
 originally received the request.
 
-*[macro]* `multiple-value-reply request multiple-value-form`
+#### *[macro]* `multiple-value-reply request multiple-value-form`
 
 Like `reply`, this responds to a call `request`. Unlike reply, this macro
 sends multiple values returned from `multiple-value-form` in the
@@ -208,23 +207,23 @@ sends multiple values returned from `multiple-value-form` in the
 
 This macro is equivalent to `(multiple-value-call #'reply request multiple-value-form)`
 
-*[variable]* `*call-timeout*`
+#### *[variable]* `*call-timeout*`
 
 Seconds to wait before signaling a `call-timeout` error. Defaults to `5`.
 
-*[condition]* `call-error`
+#### *[condition]* `call-error`
 
 Parent condition type for call-related errors.
 
-*[condition]* `callee-down`
+#### *[condition]* `callee-down`
 
 Signaled when a server exits during a `call`.
 
-*[condition]* `call-timeout`
+#### *[condition]* `call-timeout`
 
 Signaled when a `call` times out.
 
-*[macro]* `defcall name lambda-list (server-var server-specializer &key server-form request define-function-p timeout) &body body`
+#### *[macro]* `defcall name lambda-list (server-var server-specializer &key server-form request define-function-p timeout) &body body`
 
 Convenience macro for defining a pair of API function + call
 handler. `defcall` defines an API function roughly expanding to `(defun
