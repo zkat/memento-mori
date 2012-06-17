@@ -3,23 +3,22 @@
   (:import-from #:memento-mori.mailbox #:receive-timeout)
   (:nicknames #:mori)
   (:export
-   ;; Core
+   ;; Debugging
    #:*debug-on-error-p*
    #:enable-crash-logging
    #:disable-crash-logging
    #:crash-logging-enabled-p
+   ;; Actors
    #:current-actor
    #:actor
    #:all-actors
    #:actor-alive-p
-   #:trap-exits-p
-   #:enable-trap-exits
-   #:disable-trap-exits
    #:spawn
    ;; Messaging
    #:send
    #:receive
    #:receive-cond
+   #:receive-timeout
    #:selective-receive
    #:flush-messages
    ;; Exits
@@ -32,7 +31,10 @@
    #:finished
    #:shutdown
    #:kill
-   #:break-remote
+   #:trap-exits-p
+   #:enable-trap-exits
+   #:disable-trap-exits
+   #:break-actor
    ;; Named actors
    #:find-actor
    #:ensure-actor
