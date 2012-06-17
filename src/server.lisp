@@ -6,6 +6,7 @@
    #:start
    #:enter-server-loop
    #:exit-server-loop
+   #:unknown
    ;; server protocol
    #:on-init
    #:on-call
