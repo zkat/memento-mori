@@ -57,6 +57,13 @@
    This should be resolved either by adding an exit-signal or remote-exit
    type that will be sent as the message when regular remote exits happen,
    or the exit-signal/remote-exit type should replace link-exit.
+** TODO Export with/without-interrupts API
+   A cleaned-up with/without-interrupts API should be made available to
+   users so they can protect important forms from mori's signaling
+   mechanisms.
+** TODO Dynamic vars
+   There's still a good number of dynamic vars that are really just
+   global. Hide these and the associated locks behind closures.
 ** TODO Recursive locks?
    I sort of defensively spammed with-recursive-lock-held, but this may be
    detrimental to performance (and give the wrong impression
