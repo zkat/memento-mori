@@ -39,7 +39,7 @@
                            linkp monitorp name debugp
                            (max-restarts 5) (max-restart-time 10)
                            initial-child-specs)
-  (mori-srv:start
+  (mori-srv:start-server
    (lambda ()
      (let ((table (make-hash-table)))
        (map nil (lambda (child-spec)

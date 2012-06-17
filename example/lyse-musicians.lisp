@@ -23,10 +23,11 @@
 (defstruct musician role name skill timer)
 
 (defun start-musician (role skill)
-  (mori-srv:start (lambda () (make-musician :role role :skill skill))
-                  :linkp t
-                  :name role
-                  :trap-exits-p t))
+  (mori-srv:start-server
+   (lambda () (make-musician :role role :skill skill))
+   :linkp t
+   :name role
+   :trap-exits-p t))
 
 (defmethod mori-srv:on-init ((musician musician))
   (setf *random-state* (make-random-state t)

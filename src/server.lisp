@@ -9,7 +9,7 @@
    #:on-message
    #:on-shutdown
    ;; API
-   #:start
+   #:start-server
    #:enter-server-loop
    #:exit-server-loop
    #:unknown
@@ -87,11 +87,12 @@ reason of `'unknown`."))
 ;;;
 (defvar *in-server-loop-p* nil)
 
-(defun start (driver-function &key
-                                linkp monitorp trap-exits-p
-                                (name nil namep)
-                                (initial-bindings *default-special-bindings*)
-                                (debugp *debug-on-error-p*))
+(defun start-server (driver-function
+                     &key
+                       linkp monitorp trap-exits-p
+                       (name nil namep)
+                       (initial-bindings *default-special-bindings*)
+                       (debugp *debug-on-error-p*))
   "Creates a new actor and immediately enters a
 server-loop. `driver-function` must be a function whose primary return
 value is a Lisp object that will be used to dispatch the various 'callback'
@@ -192,7 +193,7 @@ Example:
      (driver greeter)
    (format t \"~&~A sez: 'Hello, ~A!'~%\" driver to))
 
- (say-hello (start #'make-greeter) :to \"Detroit\") => T
+ (say-hello (start-server #'make-greeter) :to \"Detroit\") => T
 ```"
   (let ((args-var (gensym "ARGS")))
     `(progn
@@ -349,7 +350,7 @@ Example:
      (driver greeter :request req)
    (values (list driver req to) to))
 
- (say-hello (start #'make-greeter) :to \"Detroit\")
+ (say-hello (start-server #'make-greeter) :to \"Detroit\")
      =>
    (#S(GREETER) #<CALL-REQUEST #x302000F7FBDD> \"Detroit\")
    \"Detroit\"

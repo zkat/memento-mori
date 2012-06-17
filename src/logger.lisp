@@ -11,7 +11,7 @@
 
 (defun ensure-logger ()
   (handler-case
-      (mori-srv:start #'make-logger :name 'logger)
+      (mori-srv:start-server #'make-logger :name 'logger)
     (mori:actor-already-exists ()
       (mori:find-actor 'logger))))
 
