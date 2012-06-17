@@ -67,7 +67,7 @@
           (mori-timer:send-after 1 'play))))
 
 (defmethod mori-srv:on-message ((musician musician) (remote-exit remote-exit))
-  (report "The band  walked out on ~a!" (musician-name musician))
+  (report "The band supervisor walked out on ~a!" (musician-name musician))
   (exit (remote-exit-reason remote-exit)))
 
 (defmethod mori-srv:on-shutdown ((musician musician) reason)
