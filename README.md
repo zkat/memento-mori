@@ -36,7 +36,7 @@ CL-USER> (let ((server (mori-srv:start #'make-example-server)))
                          (mori-log:info "Multiple return values: ~a."
                                         (multiple-value-list
                                          (this-is-synchronous server 'an-argument)))
-                         (mori:shutdown 'bye server))))
+                         (mori:exit 'shutdown server))))
 [memento-mori.logger:info] Caller: #<ACTOR [0 msgs] #x302000CEEFDD>.
 [memento-mori.logger:info] Server actor: #<ACTOR [0 msgs] #x302000CEFB8D>. Argument: AN-ARGUMENT
 [memento-mori.logger:info] Multiple return values: (1 2 3).
