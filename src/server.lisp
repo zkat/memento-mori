@@ -47,10 +47,14 @@
 (defgeneric on-shutdown (driver reason)
   (:method ((driver t) (reason t)) t))
 
+(defvar *in-server-loop-p* nil)
+
 (defun exit-server-loop ()
+  (unless *in-server-loop-p*
+    (error "EXIT-SERVER-LOOP can only be called within the scope of a server loop."))
   (exit 'exit-server-loop))
 
-(defun enter-server-loop (driver &aux reason)
+(defun enter-server-loop (driver &aux reason (*in-server-loop-p* t))
   (assert (current-actor) () "ENTER-SERVER-LOOP must be called within the scope of an actor.")
   (handler-bind ((exit (lambda (e)
                          (setf reason e)
