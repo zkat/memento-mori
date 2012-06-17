@@ -1,0 +1,171 @@
+* core
+** DONE CCL support
+   Gonna need to write my own queue (probably based on chanl)
+** DONE Selective receive
+** DONE Nice messages for exits and downs
+   The concept of exits, errors, and link/monitor signals needs a facelift. It's a bit all over the
+   place right now. Rethink the API and export all the appropriate things to make the whole API
+   useful.
+** DONE Links
+   Need to kill or message processes, as appropriate, based on the actor-stop type.
+** DONE Monitors
+   Need to message monitor processes with the proper message.
+** DONE exits
+   Exiting/killing from within the current actor should unconditionally signal a stop. It should
+   also not do an interrupt.
+** DONE Living with interrupts
+   Basically, SBCL doesn't wrap its cleanup-forms in without-interrupts, so unwind-protect isn't
+   fully 'safe' in SBCL. So, if you want safe unwind-protect, nag SBCL hackers about it. CCL does
+   The Right Thing, though. :) In the meantime, signal-exit has been made a little safer by
+   preventing interruption of the interrupt itself.
+** DONE actor-shutdown
+   Add another actor-stop type to signify when a clean shutdown request has
+   been sent to an actor.
+** DONE Don't clobber name registration
+   Throw an error or something if a name already exists, instead of just
+   overwriting the current name setting. Alternately, warn when a name is
+   clobbered like that.
+   Of course, if the name already exists, we may not want to start the
+   actor at all, lest we're left with an anonymous actor somewhere out
+   there.
+** DONE Actor designators
+   Since we have a registration system, actor-related functions should
+   accept either symbols or actual actor objects.
+** DONE i/o
+   Might be nice to have all actor-based I/O go through a single, locked stream that makes sure all
+   i/o units are ordered properly.
+   It may be Good Enough to just write a quick gray-streams stream wrapper that will grab a lock
+   when trying to write-sequence/write-string. See how it goes.
+   Update: Wtf? Was I imagining things? Output seems to be perfectly
+   ordered now. FML.
+   Update: Not my problem. If anyone wants ordered output, they can write
+   their own server(s) to arrange for output delivery however they need.
+** DONE SBCL
+   Get this shit working with sbcl. I seem to be messing up the interrupts logic.
+** DONE Error on bad links/monitors
+   If you try to link to or monitor a dead actor, there should be an error.
+** DONE Erlang-style exits
+   Just give up on it for now -- have a single exit condition, and do
+   different things depending on the reason attached to it.
+** DONE Signal handling
+   It should *not be possible* to handle remote signals with a
+   handler-case. Remote signals must be handled with trap-exits, or be
+   allowed to kill the process.
+** TODO Recursive locks?
+   I sort of defensively spammed with-recursive-lock-held, but this may be
+   detrimental to performance (and give the wrong impression
+   sometimes?). Is it really necessary to use this in all cases? Is using
+   it actually hiding real bugs?
+** TODO Race conditions?
+   Crawl through actor.lisp looking for potential race conditions. Wrap the
+   appropriate places with the appropriate locks.
+** TODO Pid system
+   Explore this idea. What's special about pids compared to the current
+   actor implementation? What's good? It seems useful for debugging
+   purposes, and might be pretty easy to add once mori has a global actor
+   list.
+** TODO Debugging
+   Really sucks. Either we get silent failures, or we get slammed with
+   sldb.
+*** DONE One sldb at a time for actors
+    Be kind. Put a lock around the invoke-debugger in actors.
+    NOTE: Keep an eye on this. It may cause problems to serialize debugging.
+*** DONE Logger actor
+    It would be quite nice to have a logger actor that gets started right
+    away that reports process crashes in an orderly manner. This will then
+    also be useful for regular, orderly logging in a concurrent world.
+**** DONE Basic logger
+**** DONE Report unhandled crashes
+*** TODO Enough is enough
+    When you have 100 actors crashing with the same error and all of them
+    have debug enabled, you're just gonna get the same error again. Add a
+    restart that lets you ignore (or pick a certain restart) for all errors
+    for the next N seconds or so.
+    NOTE - this is going to involve having a single, global debug-enabled
+    setting, instead of a dynamic variable. Not sure if this is the way to
+    go. Just leave it as it is for now.
+*** TODO Stop the world
+    Would be nice if you could stop all threads from the repl :\
+** TODO Actor-only calls
+   Some calls/call options can only be accessed when (current-actor) is bound to a valid
+   actor. Complain loudly and early when attempts are made to access these outside the scope of a
+   spawned actor.
+   This is getting pretty annoying, specially when using hip-srv:call
+   inadvertedly.
+** TODO gproc
+   gproc looks like regular Erlang process registration on steroids. Maybe it's worth using that as
+   a model for hip's actor registration system (mixed with CL's concept of designators).
+** TODO Document API
+** TODO Actorize
+   Is it possible to, at least partially, convert the current thread into an actor? Can it be done
+   automagically?
+** TODO stack sizes
+   Make stack sizes controllable? Maybe make the default stack size smaller
+   than usual?
+* logger
+** DONE Optional loading
+   Using the logger should be optional, although easy to do.
+** TODO trivial-backtrace
+   Looks like this could give some useful information to print out.
+** TODO supervision
+   The logger really should be supervised properly.
+** TODO timestamps
+   Slap a timestamp in there to make things easier to track.
+** TODO More
+   Erlang has its own fancy error logger, which uses gen_event:
+   http://www.erlang.org/doc/man/error_logger.html
+* timer
+** DONE Implement the functions in timer.lisp
+** DONE SBCL
+   Get this shit working with sbcl
+** TODO Figure out what to do about CCL
+   It looks like trivial-timer's implementation of timers is putting way
+   too much load on CCL, which is noticeable when the timeouts are
+   relatively small. Is there a way to improve it so it's not so bad?
+** TODO Document API
+** TODO Merge *-after/*-interval to be able to do both
+   Maybe. Think about it.
+* server
+** DONE start
+** DONE enter-loop
+** DONE cast
+** DONE info
+** DONE react to callback results
+   erlang gen_server callbacks let you do things like {stop, Reason}, {noreply, State}, etc. Perhaps
+   the lisp equivalent of this would be special functions that, when called in their scope, alter
+   the standard return behavior by throwing something.
+   UPDATE - instead of basing things on the return values, all callbacks have exit-server-loop
+   available to immediately break from the server loop. Additionally, on-call can defer replying to
+   its caller by calling (defer-call-reply).
+** DONE call
+   This includes implementing REPLY. Throw in a macro to make it simpler, too.
+*** DONE reply
+*** DONE Multiple values
+    hipocrite.mailbox::do-selective-receive is messing with the multiple
+    value returns. :(
+** TODO defcall/defcast
+*** DONE implicit server
+    Sometimes, we want the actor the call/cast is being sent to to be implicit in the API function.
+*** TODO lambda lists
+    Use the provided lambda-list to construct the API function lambda-list.
+*** TODO declarations
+    Accept declarations (for the API call only?)
+** TODO Document API
+* event
+** TODO Implement a gen_event clone
+   This'll probably also be useful for the logger, so it's definitely a nice-to-have.
+* supervisor
+** TODO Orderly shutdown
+   On receiving a shutdown signal, the supervisor should send a shutdown to
+   all its children, and wait for a certain amount of time to make sure
+   they've all shut down, before shutting itself down. If the children take
+   too long to shut down, they should be brutally killed.
+** TODO one-for-one supervisor
+   One shutdown = one restart
+** TODO one-for-all supervisor
+   One shutdown = all children are restarted
+** TODO simple-one-for-one sup
+   Simpler API for managing many children that share most of a child spec.
+** TODO Sexy, lispy API
+* application
+** TODO Research about what application provides.
