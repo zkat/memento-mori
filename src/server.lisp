@@ -149,7 +149,7 @@
 
 (defmacro defcall (name lambda-list
                    (server-var
-                    server-class
+                    server-specializer
                     &key
                     (server-form nil server-form-p)
                     request
@@ -167,7 +167,7 @@
                    (call ,(if server-form-p server-form server-var)
                          ',name args
                          ,@(when timeoutp `(:timeout ,timeout))))))
-       (defmethod on-call ((,server-var ,server-class)
+       (defmethod on-call ((,server-var ,server-specializer)
                            (,(or request (gensym "REQUEST")) t)
                            (,(gensym "NAME") (eql ',name))
                            ,args-var)
@@ -184,7 +184,7 @@
 
 (defmacro defcast (name lambda-list
                    (server-var
-                    server-class
+                    server-specializer
                     &key
                     (server-form nil server-form-p)
                     (define-function-p t))
@@ -196,7 +196,7 @@
                                    '(&rest args)
                                    `(,server-var &rest args))
                    (apply #'cast ,(if server-form-p server-form server-var) ',name args))))
-       (defmethod on-cast ((,server-var ,server-class)
+       (defmethod on-cast ((,server-var ,server-specializer)
                            (,(gensym "NAME") (eql ',name))
                            ,args-var)
          (flet ((,name ,lambda-list ,@body))
@@ -215,7 +215,7 @@
 (defmacro defhandler (callback-name call-name
                       name
                       (server-var
-                       server-class
+                       server-specializer
                        &key
                        (define-function-p t)
                        (timeout nil timeoutp))
@@ -225,7 +225,7 @@
        ,@(when define-function-p
                `((defun ,name (,server-var &rest args)
                    (,call-name ,server-var ',name args ,@(when timeoutp `(:timeout ,timeout))))))
-       (defmethod ,callback-name ((,server-var ,server-class)
+       (defmethod ,callback-name ((,server-var ,server-specializer)
                                   (,(gensym "NAME") (eql ',name))
                                   ,args-var)
          (flet ((,name ,lambda-list ,@body))
