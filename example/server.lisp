@@ -19,9 +19,9 @@
   (format t "~&I, ~a (@~a), am SO HAPPY about ~s!~%"
           server (mori:current-actor) about))
 
-(defcast please-die (why)
+(defcast please-die ()
     (server example-server)
-  (mori-srv:exit-server-loop why)
+  (mori-srv:exit-server-loop)
   (format t "~&Unreachable code. This won't print.~%"))
 
 (defcall deferred-reply (value)
@@ -50,13 +50,13 @@
                  :name :test-server
                  :debugp t)))
     (mori:spawn (lambda ()
-                 (mori-timer:call-after 2 (lambda ()
-                                           (mori:send server "This is a regular message.")))
-                 (be-happy server pi)
-                 (multiple-value-call
-                     #'format t "~&Number: ~a, Second value: ~a.~%"
-                     (add-numbers 1 2 3 4 5))
-                 (format t "Deferred reply: ~a"
-                         (multiple-value-list (deferred-reply server 'block-me)))
-                 (please-die server "I'm done with you."))
-               :debugp t)))
+                  (mori-timer:call-after 2 (lambda ()
+                                             (mori:send server "This is a regular message.")))
+                  (be-happy server pi)
+                  (multiple-value-call
+                      #'format t "~&Number: ~a, Second value: ~a.~%"
+                      (add-numbers 1 2 3 4 5))
+                  (format t "Deferred reply: ~a"
+                          (multiple-value-list (deferred-reply server 'block-me)))
+                  (please-die server))
+                :debugp t)))
