@@ -45,9 +45,10 @@
   (format t "~&~a is shutting down because of ~a.~%" server reason))
 
 (defun test-example-server ()
-  (let ((server (mori-srv:start #'make-example-server
-                               :name :test-server
-                               :debugp t)))
+  (let ((server (mori-srv:start-server
+                 #'make-example-server
+                 :name :test-server
+                 :debugp t)))
     (mori:spawn (lambda ()
                  (mori-timer:call-after 2 (lambda ()
                                            (mori:send server "This is a regular message.")))

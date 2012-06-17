@@ -12,7 +12,7 @@ default methods that do nothing.
 
 ## Server management
 
-A server is started using the `start` function, which is similar to
+A server is started using the `start-server` function, which is similar to
 `mori:spawn`, but accepts a function that is expected to return a `driver`
 object. The `driver` object is then used to dispatch the various `mori-srv`
 generic functions. An existing actor can also be converted to a server by
@@ -21,7 +21,7 @@ calling the `enter-server-loop` function.
 A server may stop for various reasons, including the usual exits, kills,
 and unhandled errors. Additionally, `exit-server-loop` may be used to exit
 the server loop. This does not necessarily stop the actor, though, unless
-it was started with `start`.
+it was started with `start-server`.
 
 ### Server management dictionary
 
@@ -41,7 +41,7 @@ the exit reason. Otherwise, `reason` will have a reason of `'unknown`.
 Called on `driver` when the server receives a non-`call`, non-`cast`
 message. `message` is whatever Lisp object was sent.
 
-#### *[function]* `start driver-function &key linkp monitorp trap-exits-p name initial-bindings debugp`
+#### *[function]* `start-server driver-function &key linkp monitorp trap-exits-p name initial-bindings debugp`
  
 Creates a new actor and immediately enters a server-loop. `driver-function`
 must be a function whose primary return value is a Lisp object that will be
@@ -123,7 +123,7 @@ Example:
     (driver greeter)
   (format t "~&~A sez: 'Hello, ~A!'~%" driver to))
 
-(say-hello (start #'make-greeter) :to "Detroit") => T
+(say-hello (start-server #'make-greeter) :to "Detroit") => T
 ```
 
 ## Call - synchronous messages
@@ -261,7 +261,7 @@ Example:
     (driver greeter :request req)
   (values (list driver req to) to))
 
-(say-hello (start #'make-greeter) :to "Detroit")
+(say-hello (start-server #'make-greeter) :to "Detroit")
     =>
   (#S(GREETER) #<CALL-REQUEST #x302000F7FBDD> "Detroit")
   "Detroit"
