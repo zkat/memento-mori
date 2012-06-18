@@ -44,6 +44,18 @@ monitoring will fail if the thread calling `spawn` is not an actor thread.
     the new actor, and any actors those actors create (and `:debugp nil`
     can be passed to stop this cascade of debugger love).
 
+#### *[function]* `call-with-actor-context function &key trap-exits-p name debugp`
+
+Calls `function`, a no-argument function, in the scope of an actor, and
+returns once `function` completes. The 'fake' actor will behave as if it
+terminated on return. Returns the actor's exit reason.
+
+#### *[macro]* `with-actor-context (&key trap-exits-p name debugp) &body body`
+
+Executes `body` in an implicit `progn` within the scope of an actor, and
+returns once execution completes. The 'fake' actor will be have as if it
+terminated on return. Returns the actor's exit reason.
+
 #### *[function]* `current-actor`
 
 Returns the current actor object, or NIL if called outside of an actor

@@ -57,6 +57,9 @@
    This should be resolved either by adding an exit-signal or remote-exit
    type that will be sent as the message when regular remote exits happen,
    or the exit-signal/remote-exit type should replace link-exit.
+** DONE Actorize
+   Is it possible to, at least partially, convert the current thread into an actor? Can it be done
+   automagically?
 ** TODO Export with/without-interrupts API
    A cleaned-up with/without-interrupts API should be made available to
    users so they can protect important forms from mori's signaling
@@ -109,9 +112,6 @@
    gproc looks like regular Erlang process registration on steroids. Maybe it's worth using that as
    a model for hip's actor registration system (mixed with CL's concept of designators).
 ** TODO Document API
-** TODO Actorize
-   Is it possible to, at least partially, convert the current thread into an actor? Can it be done
-   automagically?
 ** TODO stack sizes
    Make stack sizes controllable? Maybe make the default stack size smaller
    than usual?
