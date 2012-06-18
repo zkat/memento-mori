@@ -166,6 +166,18 @@
     hipocrite.mailbox::do-selective-receive is messing with the multiple
     value returns. :(
 ** DONE Document API
+** DONE Don't lie about exit reasons
+   The way exit-server-loop works means we sort of lie about exit
+   reasons. Although the on-shutdown method receives the exit-server-loop
+   reason, the actor's actual exit reason (if enter-server-loop is the last
+   function executed) will be 'finished.
+** TODO exit-server-loop
+   Leaves a bad taste in my mouth. exit-server-loop needs to be special
+   because it can escape just the scope of enter-server-loop, but it's nice
+   to know the reason we're exiting the server loop, and exit-server-loop
+   is meant to be a relatively clean shutdown, not a sledgehammer, but
+   using 'exit-server-loop as a reason makes it into an abnormal
+   exit. Argh.
 ** TODO defcall/defcast
 *** DONE implicit server
     Sometimes, we want the actor the call/cast is being sent to to be implicit in the API function.
