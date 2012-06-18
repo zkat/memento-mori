@@ -138,6 +138,7 @@ monitoring will fail if the thread calling `spawn` is not an actor thread.
   (let* ((actor (make-actor :function func :trap-exits-setting trap-exits-p))
          (monitor (when monitorp (%monitor actor (current-actor) nil))))
     (when namep (register name actor))
+    (%add-actor actor)
     (setf (actor-thread actor)
           (bt:make-thread
            (make-actor-function actor func linkp namep name debugp)
@@ -147,7 +148,6 @@ monitoring will fail if the thread calling `spawn` is not an actor thread.
             (cons '*current-actor* actor)
             (cons '*debug-on-error-p* *debug-on-error-p*)
             initial-bindings)))
-    (%add-actor actor)
     (if monitor
         (values actor monitor)
         actor)))
