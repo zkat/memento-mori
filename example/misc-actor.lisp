@@ -32,9 +32,8 @@
          :trap-exits-p t))
 
 (defun test-chain (n)
-  (spawn (lambda ()
-           (format t "~&Chain has died with reason: ~s~%" (chain n)))
-         :trap-exits-p t))
+  (with-actor-context (:trap-exits-p t)
+    (format t "~&Chain has died with reason: ~s~%" (chain n))))
 
 (defun chain (n)
   (cond ((= n 0)
@@ -88,24 +87,24 @@
                        (monitor-exit-reason exit)))))))
 
 (defun test-selective-receive ()
-  (spawn (lambda ()
-           (let ((self (current-actor)))
-             (spawn (curry #'send self 'second))
-             (sleep 1)
-             (spawn (curry #'send self 'first))
-             (receive-cond (msg)
-               ((eq msg 'first)
-                (print "Got the first message")))
-             (receive-cond (msg)
-               ((eq msg 'anything-else)
-                (print "Got something unexpected."))
-               (after 5
-                (print "Timed out waiting for anything-else.")))
-             (print
-              (multiple-value-list
-               (receive-cond (msg)
-                 ((eq msg 'second)
-                  (values "Got the second message" 'and-another-value)))))))))
+  (with-actor-context ()
+    (let ((self (current-actor)))
+      (spawn (curry #'send self 'second))
+      (sleep 1)
+      (spawn (curry #'send self 'first))
+      (receive-cond (msg)
+        ((eq msg 'first)
+         (print "Got the first message")))
+      (receive-cond (msg)
+        ((eq msg 'anything-else)
+         (print "Got something unexpected."))
+        (after 5
+               (print "Timed out waiting for anything-else.")))
+      (print
+       (multiple-value-list
+        (receive-cond (msg)
+          ((eq msg 'second)
+           (values "Got the second message" 'and-another-value))))))))
 
 (defun test-timers ()
   (spawn (lambda ()
@@ -118,6 +117,5 @@
                              (loop (sleep 0.5))
                            (exit (e)
                              (mori-log:error "I should not have caught ~a!" e)))))))
-    (spawn (lambda ()
-             ;; Remote exits are uncatchable. You *must* trap exits.
-             (exit 'die killme)))))
+    ;; Remote exits are uncatchable. You *must* trap exits.
+    (exit 'die killme)))
