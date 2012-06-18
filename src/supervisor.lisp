@@ -106,7 +106,7 @@
 
 (defun child-restartable-p (child exit)
   (let ((child-spec (supervisor-child-child-spec child)))
-    (case (exit-reason exit)
+    (case (remote-exit-reason exit)
       ((finished shutdown)
        (child-spec-restart-on-normal-exit-p child-spec))
       (otherwise
