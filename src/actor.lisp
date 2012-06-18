@@ -470,7 +470,13 @@ exit reason."
   "Interrupts `actor` with `cl:break`. Intended purely for debugging
 purposes. `actor` must be an actor designator."
   (bt:interrupt-thread (actor-thread (ensure-actor actor))
-                       (apply #'curry #'break string args)))
+                       (lambda ()
+                         (cond ((actor-finished-p actor)
+                                nil)
+                               ((actor-started-p actor)
+                                (apply #'break string args))
+                               (t
+                                (warn "Can't interrupt an actor while it's spinning up."))))))
 
 ;;;
 ;;; Registration
