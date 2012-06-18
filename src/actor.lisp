@@ -81,6 +81,7 @@
   thread
   function
   started-p
+  finished-p
   early-exit)
 
 (defmethod print-object ((actor actor) stream)
@@ -239,6 +240,7 @@ enabled."
                            (abort ()
                              :report "Kill the current actor."
                              (kill (current-actor))))))))
+          (setf (actor-finished-p actor) t)
           (when namep (unregister name nil))
           (notify-links actor exit)
           (notify-monitors actor exit)
@@ -415,9 +417,15 @@ Which can then be used like:
          (bt:interrupt-thread (actor-thread actor)
                               (lambda ()
                                 (without-interrupts
-                                  (if (actor-started-p actor)
-                                      (throw *unhandled-exit* exit)
-                                      (setf (actor-early-exit actor) exit))))))))
+                                  (cond ((actor-finished-p actor)
+                                         nil)
+                                        ((actor-started-p actor)
+                                         (throw *unhandled-exit* exit))
+                                        (t
+                                         ;; We're in that cute little gap
+                                         ;; between thread startup and the
+                                         ;; initial WITHOUT-INTERRUPTS.
+                                         (setf (actor-early-exit actor) exit)))))))))
 
 (defun exit (reason &optional (actor (current-actor)))
   "Signals an exit to `actor`. If `actor` is `(current-actor)`, a Lisp
