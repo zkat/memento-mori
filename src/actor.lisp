@@ -67,7 +67,7 @@
 ;;; Actors
 ;;;
 (defvar *debug-on-error-p* nil)
-(defvar *current-actor* nil)
+(defvar *current-actor*)
 
 (defstruct actor
   (mailbox (memento-mori.mailbox:make-mailbox) :read-only t)
@@ -90,8 +90,11 @@
                                 (actor-mailbox actor)))))
 
 (defun current-actor ()
-  "Returns the current actor object, or NIL if called outside of an actor thread."
-  *current-actor*)
+  "Returns the current actor object. Signals an error if not in the context
+of an actor."
+  (handler-case *current-actor*
+    (unbound-variable ()
+      (error "CURRENT-ACTOR must be called within the context of an actor."))))
 
 (defun actor-alive-p (actor)
   (bt:thread-alive-p (actor-thread (ensure-actor actor))))
@@ -203,7 +206,7 @@ enabled."
 (defvar *debugger-lock* (bt:make-lock))
 (defvar *unhandled-exit* (gensym "UNHANDLED-EXIT"))
 (defun make-actor-function (actor func linkp namep name debugp
-                            &aux (parent (current-actor)))
+                            &aux (parent (ignore-errors (current-actor))))
   (lambda ()
     (without-interrupts
       (setf (actor-started-p actor) t)
@@ -403,7 +406,7 @@ Which can then be used like:
                :reason (exit-reason exit))))
 
 (defun signal-exit (actor exit &aux (actor (ensure-actor actor)))
-  (cond ((eq actor (current-actor))
+  (cond ((eq actor (ignore-errors (current-actor)))
          (signal exit))
         ((and (%trap-exits-p actor)
               (not (typep exit '%killed)))
