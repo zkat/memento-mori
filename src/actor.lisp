@@ -16,6 +16,8 @@
    #:all-actors
    #:actor-alive-p
    #:spawn
+   #:call-with-actor-context
+   #:with-actor-context
    ;; Messaging
    #:send
    #:receive
@@ -151,6 +153,30 @@ monitoring will fail if the thread calling `spawn` is not an actor thread.
     (if monitor
         (values actor monitor)
         actor)))
+
+(defun call-with-actor-context (function
+                                &key
+                                  trap-exits-p
+                                  (name nil namep)
+                                  (debugp *debug-on-error-p*))
+  "Calls `function`, a no-argument function, in the scope of an actor, and
+returns once `function` completes. The 'fake' actor will behave as if it
+terminated on return. Returns the actor's exit reason."
+  (let ((*current-actor* (make-actor :function function :trap-exits-setting trap-exits-p)))
+    (when namep (register name *current-actor*))
+    (%add-actor *current-actor*)
+    (funcall (make-actor-function *current-actor* function nil namep name debugp))))
+
+(defmacro with-actor-context ((&key
+                               trap-exits-p (name nil namep) (debugp *debug-on-error-p*))
+                                 &body body)
+  "Executes `body` in an implicit `progn` within the scope of an actor, and
+returns once execution completes. The 'fake' actor will be have as if it
+terminated on return. Returns the actor's exit reason."
+  `(call-with-actor-context (lambda () ,@body)
+                            :trap-exits-p ,trap-exits-p
+                            :debugp ,debugp
+                            ,@(when namep `(:name ,name))))
 
 (let ((log-crashes-p t)
       (log-settings-lock (bt:make-lock)))
