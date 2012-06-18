@@ -35,6 +35,7 @@
    #:finished
    #:shutdown
    #:kill
+   #:killed
    #:trap-exits-p
    #:enable-trap-exits
    #:disable-trap-exits
