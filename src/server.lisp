@@ -100,7 +100,7 @@ functions in `mori-srv`. This function's keyword arguments are passed to
 `mori:spawn`, and the function will return whatever `mori:spawn`
 returns (either an `actor` or `(values actor monitor)`)."
   (apply #'spawn
-         (lambda () (enter-server-loop (funcall driver-function)))
+         (lambda () (%enter-server-loop (funcall driver-function)))
          :linkp linkp
          :monitorp monitorp
          :trap-exits-p trap-exits-p
@@ -108,16 +108,20 @@ returns (either an `actor` or `(values actor monitor)`)."
          :debugp debugp
          (when namep (list :name name))))
 
-(defun enter-server-loop (driver &aux reason (*in-server-loop-p* t))
+(defun enter-server-loop (driver)
   "Makes the current actor enter a server loop, using `driver` to dispatch
 server callbacks. Once this function is called, the current actor will
 behave like any other server, although it will not necessarily terminate
 when the server loop is exited (since there may be more code to execute)."
+  (handler-bind ((exit (lambda (e)
+                         (when (eq 'exit-server-loop (exit-reason e))
+                           (return-from enter-server-loop t)))))
+    (%enter-server-loop driver)))
+
+(defun %enter-server-loop (driver &aux reason (*in-server-loop-p* t))
   (assert (current-actor) () "ENTER-SERVER-LOOP must be called within the scope of an actor.")
   (handler-bind ((exit (lambda (e)
-                         (setf reason e)
-                         (when (eq 'exit-server-loop (exit-reason e))
-                           (return-from enter-server-loop t))))
+                         (setf reason e)))
                  (error (lambda (e)
                           (setf reason (make-condition 'exit :reason e)))))
     (on-init driver)
