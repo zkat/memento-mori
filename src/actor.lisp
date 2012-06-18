@@ -162,7 +162,9 @@ monitoring will fail if the thread calling `spawn` is not an actor thread.
   "Calls `function`, a no-argument function, in the scope of an actor, and
 returns once `function` completes. The 'fake' actor will behave as if it
 terminated on return. Returns the actor's exit reason."
-  (let ((*current-actor* (make-actor :function function :trap-exits-setting trap-exits-p)))
+  (let ((*current-actor* (make-actor :function function
+                                     :trap-exits-setting trap-exits-p
+                                     :thread (bt:current-thread))))
     (when namep (register name *current-actor*))
     (%add-actor *current-actor*)
     (funcall (make-actor-function *current-actor* function nil namep name debugp))))
