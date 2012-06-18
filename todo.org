@@ -68,6 +68,7 @@
 ** DONE After-execution interrupt gap.
    Interrupts can be scheduled for -after- a thread finishes
    executing. Don't signal exits if we're in this gap.
+** DONE Document API
 ** TODO Export with/without-interrupts API
    A cleaned-up with/without-interrupts API should be made available to
    users so they can protect important forms from mori's signaling
@@ -119,7 +120,6 @@
 ** TODO gproc
    gproc looks like regular Erlang process registration on steroids. Maybe it's worth using that as
    a model for hip's actor registration system (mixed with CL's concept of designators).
-** TODO Document API
 ** TODO stack sizes
    Make stack sizes controllable? Maybe make the default stack size smaller
    than usual?
@@ -139,13 +139,14 @@
 ** DONE Implement the functions in timer.lisp
 ** DONE SBCL
    Get this shit working with sbcl
+** DONE Merge *-after/*-interval to be able to do both
+   Maybe. Think about it.
+   Update: Meh. Just give *-interval an optional delay
+** DONE Document API
 ** TODO Figure out what to do about CCL
    It looks like trivial-timer's implementation of timers is putting way
    too much load on CCL, which is noticeable when the timeouts are
    relatively small. Is there a way to improve it so it's not so bad?
-** TODO Document API
-** TODO Merge *-after/*-interval to be able to do both
-   Maybe. Think about it.
 * server
 ** DONE start
 ** DONE enter-loop
@@ -164,6 +165,7 @@
 *** DONE Multiple values
     hipocrite.mailbox::do-selective-receive is messing with the multiple
     value returns. :(
+** DONE Document API
 ** TODO defcall/defcast
 *** DONE implicit server
     Sometimes, we want the actor the call/cast is being sent to to be implicit in the API function.
@@ -171,7 +173,6 @@
     Use the provided lambda-list to construct the API function lambda-list.
 *** TODO declarations
     Accept declarations (for the API call only?)
-** TODO Document API
 * event
 ** TODO Implement a gen_event clone
    This'll probably also be useful for the logger, so it's definitely a nice-to-have.
