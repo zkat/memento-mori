@@ -58,8 +58,8 @@ terminated on return. Returns the actor's exit reason.
 
 #### *[function]* `current-actor`
 
-Returns the current actor object, or NIL if called outside of an actor
-thread.
+Returns the current actor object. Signals an error if not in the context of
+an actor.
 
 #### *[function]* `actor-alive-p actor`
 
