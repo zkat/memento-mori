@@ -7,9 +7,12 @@
    #:stop-band-supervisor))
 (cl:in-package #:memento-mori.example.lyse-musicians)
 
-;;; TODO - this doesn't quite work yet.
 ;;; Implementation of the band + band supervisor from
 ;;; http://learnyousomeerlang.com/supervisors#testing-it-out
+
+;;; TODO - Still need to implement one-for-all and maybe one-for-rest
+;;;        restart strategies in mori-sup. simple-one-for-one would be
+;;;        nice, too.
 
 ;;;
 ;;; Utils
