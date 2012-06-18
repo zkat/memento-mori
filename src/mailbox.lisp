@@ -49,7 +49,7 @@
   (without-interrupts
     (bt:with-lock-held ((mailbox-lock mailbox))
       (loop when (queue-empty-p (mailbox-queue mailbox))
-         do (#+sbcl sb-sys:with-interrupts
+         do (#+sbcl sb-sys:allow-with-interrupts
              #-sbcl progn
              (with-interrupts
                (bt:condition-wait (mailbox-cond-var mailbox) (mailbox-lock mailbox))))
