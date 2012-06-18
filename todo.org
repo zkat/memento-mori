@@ -60,6 +60,14 @@
 ** DONE Actorize
    Is it possible to, at least partially, convert the current thread into an actor? Can it be done
    automagically?
+** DONE Startup delay and exit signals
+   There is a gap between the actor thread's startup and the big
+   without-interrupts where interrupts can sneak in if executed while the
+   thread is still starting up. Interrupting functions should avoid this
+   evil gap of doom.
+** DONE After-execution interrupt gap.
+   Interrupts can be scheduled for -after- a thread finishes
+   executing. Don't signal exits if we're in this gap.
 ** TODO Export with/without-interrupts API
    A cleaned-up with/without-interrupts API should be made available to
    users so they can protect important forms from mori's signaling
