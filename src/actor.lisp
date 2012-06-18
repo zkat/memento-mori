@@ -79,7 +79,9 @@
   (exit-lock (bt:make-lock) :read-only t)
   trap-exits-setting
   thread
-  function)
+  function
+  started-p
+  early-exit)
 
 (defmethod print-object ((actor actor) stream)
   (print-unreadable-object (actor stream :type t :identity t)
@@ -204,10 +206,13 @@ enabled."
                             &aux (parent (current-actor)))
   (lambda ()
     (without-interrupts
+      (setf (actor-started-p actor) t)
       (let (exit)
         (unwind-protect
              (setf exit
                    (block run-actor-function
+                     (when-let (early-exit (actor-early-exit actor))
+                       (return-from run-actor-function early-exit))
                      (catch *unhandled-exit*
                        (handler-bind ((exit (lambda (exit)
                                               (return-from run-actor-function exit)))
@@ -407,7 +412,9 @@ Which can then be used like:
          (bt:interrupt-thread (actor-thread actor)
                               (lambda ()
                                 (without-interrupts
-                                  (throw *unhandled-exit* exit)))))))
+                                  (if (actor-started-p actor)
+                                      (throw *unhandled-exit* exit)
+                                      (setf (actor-early-exit actor) exit))))))))
 
 (defun exit (reason &optional (actor (current-actor)))
   "Signals an exit to `actor`. If `actor` is `(current-actor)`, a Lisp
