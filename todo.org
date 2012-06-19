@@ -77,10 +77,14 @@
    to go is to instead check whether links/monitors have already been sent
    out (using some sentinel value), and use that to determine whether the
    process is dead or alive as far as links/monitors are concerned.
-** TODO Export with/without-interrupts API
+** DONE Export with/without-interrupts API
    A cleaned-up with/without-interrupts API should be made available to
    users so they can protect important forms from mori's signaling
    mechanisms.
+   UPDATE - no, don't bother with this. Too much trouble, too confusing,
+   and too prone to infinite loops. They can use their implementation's
+   with/without-interrupts manually if they feel terribly strongly about
+   it.
 ** TODO Dynamic vars
    There's still a good number of dynamic vars that are really just
    global. Hide these and the associated locks behind closures.
