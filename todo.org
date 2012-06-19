@@ -69,6 +69,14 @@
    Interrupts can be scheduled for -after- a thread finishes
    executing. Don't signal exits if we're in this gap.
 ** DONE Document API
+** DONE Monitors and links on dead processes
+   If an attempt is made to monitor a dead process, immediately send a down
+   signal with reason 'unknown. Something similar should be done for links.
+   One problem with the current strategy is that it relies on
+   actor-alive-p, which isn't safe to use in this context. Perhaps the way
+   to go is to instead check whether links/monitors have already been sent
+   out (using some sentinel value), and use that to determine whether the
+   process is dead or alive as far as links/monitors are concerned.
 ** TODO Export with/without-interrupts API
    A cleaned-up with/without-interrupts API should be made available to
    users so they can protect important forms from mori's signaling

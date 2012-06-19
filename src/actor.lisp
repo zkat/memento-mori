@@ -32,6 +32,7 @@
    #:remote-exit-p
    #:remote-exit-from
    #:remote-exit-reason
+   #:actor-down
    #:finished
    #:shutdown
    #:kill
@@ -407,12 +408,16 @@ Which can then be used like:
                :from (current-actor)
                :reason (exit-reason exit))))
 
-(defun signal-exit (actor exit &aux (actor (ensure-actor actor)))
-  (cond ((eq actor (ignore-errors (current-actor)))
+(defun signal-exit (actor exit &optional signal-self-p &aux (actor (ensure-actor actor)))
+  (cond ((and (not signal-self-p)
+              (eq actor (ignore-errors (current-actor))))
          (signal exit))
         ((and (%trap-exits-p actor)
               (not (typep exit '%killed)))
          (send-exit-message actor exit))
+        ((and signal-self-p
+              (eq actor (ignore-errors (current-actor))))
+         (throw *unhandled-exit* exit))
         (t
          (bt:interrupt-thread (actor-thread actor)
                               (lambda ()
@@ -572,19 +577,17 @@ under that name. If false, returns nil."
 exists, nothing happens. Links do not stack."
   (let ((actor (ensure-actor actor)))
     (bt:with-recursive-lock-held (*link-lock*)
-      (assert (actor-alive-p actor) ()
-              "Cannot link to a dead actor.")
-      (pushnew actor (actor-links self))
-      (pushnew self (actor-links actor)))
-    (values)))
+      (cond ((eq 'actor-dead (actor-links actor))
+             (signal-exit self (make-condition 'exit :reason 'actor-down) t))
+            (t
+             (pushnew actor (actor-links self))
+             (pushnew self (actor-links actor))
+             (values))))))
 
 (defun unlink (actor &aux (self (current-actor)))
   "Removes a link between `actor` and `(current-actor)`, if any."
   (let ((actor (ensure-actor actor)))
     (bt:with-recursive-lock-held (*link-lock*)
-      (assert (actor-alive-p actor)
-              ()
-              "Cannot unlink from a dead actor.")
       (removef (actor-links actor) self)
       (removef (actor-links self) actor))
     (values)))
@@ -596,7 +599,7 @@ exists, nothing happens. Links do not stack."
          do
          (signal-exit linked-actor exit)
          (removef (actor-links linked-actor) actor)))
-    (setf (actor-links actor) nil)))
+    (setf (actor-links actor) 'actor-dead)))
 
 ;;;
 ;;; Monitors
@@ -612,11 +615,18 @@ exists, nothing happens. Links do not stack."
   (let ((actor (ensure-actor actor))
         (observer (ensure-actor observer)))
     (bt:with-recursive-lock-held ((actor-monitor-lock actor))
-      (when confirm-alive
-        (assert (actor-alive-p actor) () "Cannot monitor a dead actor."))
       (let ((ref (make-monitor :observer observer :monitored-actor actor)))
-        (push ref (actor-monitors actor))
-        ref))))
+        (cond ((and (eq 'actor-dead (actor-monitors actor)) confirm-alive)
+               (send observer (make-monitor-exit :monitor ref
+                                                 :from actor
+                                                 :reason 'actor-down)))
+              ((listp (actor-monitors actor))
+               (push ref (actor-monitors actor)))
+              (t
+               ;; The only case this would happen is if somehow, we call
+               ;; %monitor with confirm-alive nil after an actor has
+               ;; already shut down, which is just plain wrong.
+               (error "BUG - This should really never happen!")))))))
 
 (defun monitor (actor &aux (self (current-actor)))
   "Makes `(current-actor)` monitor `actor`. If `actor` exits,
@@ -654,4 +664,4 @@ will continue to exist."
                 (make-monitor-exit :monitor monitor
                                    :from actor
                                    :reason (exit-reason exit))))
-    (setf (actor-monitors actor) nil)))
+    (setf (actor-monitors actor) 'actor-dead)))

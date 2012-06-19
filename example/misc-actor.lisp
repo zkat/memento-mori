@@ -119,3 +119,22 @@
                              (mori-log:error "I should not have caught ~a!" e)))))))
     ;; Remote exits are uncatchable. You *must* trap exits.
     (exit 'die killme)))
+
+(defun test-dead-actor-monitoring ()
+  (let ((dead (spawn (lambda () "goodbye, cruel world!"))))
+    (sleep 1)
+    (spawn (lambda ()
+             (monitor dead)
+             (mori-log:info "Down signal: ~A" (receive :timeout 5))))))
+
+(defun test-dead-actor-linking ()
+  (let ((dead (spawn (lambda () "goodbye, cruel world!"))))
+    (sleep 1)
+    (spawn (lambda ()
+             (link dead)
+             (mori-log:info "First: ~A" (receive :timeout 5))))
+    (spawn (lambda ()
+             (mori-log:info "Linking to ~a" dead)
+             (link dead)
+             (mori-log:info "Second: ~A" (receive :timeout 5)))
+           :trap-exits-p t)))
