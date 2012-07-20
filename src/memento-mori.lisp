@@ -1,7 +1,12 @@
 (cl:defpackage #:memento-mori
   (:use #:cl #:alexandria #:memento-mori.utils #:memento-mori.queue)
-  (:export #:send #:spawn #:current-actor
-           #:event-step #:event-loop))
+  (:nicknames #:mori)
+  (:export #:send
+           #:spawn
+           #:current-actor
+           #:event-loop
+           #:event-step
+           #:start-event-thread))
 (cl:in-package #:memento-mori)
 
 ;;;
@@ -61,6 +66,12 @@
            (wait-for-actors)
            (loop-finish)))
   (values))
+
+;;;
+;;; Event threads
+;;;
+(defun start-event-thread ()
+  (bt:make-thread 'event-loop))
 
 ;;;
 ;;; Utils
