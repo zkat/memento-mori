@@ -46,26 +46,25 @@
   (loop (event-step)))
 
 (defun event-step (&key (blockp t))
-  (loop
-     for actor = (dequeue *active-actors*)
-     if actor do
-       (multiple-value-bind (val got-val-p)
-           (dequeue (actor-queue actor))
-         (cond (got-val-p
-                (let ((*current-actor* actor))
-                  (funcall (actor-on-receive actor) val))
-                (enqueue actor *active-actors*)
-                (notify-actor-waiter)
-                (loop-finish))
-               (t
-                (unless (compare-and-swap (actor-active-p actor) t nil)
-                  (enqueue actor *active-actors*))
-                (loop-finish))))
-     else do
-       (if blockp
-           (wait-for-actors)
-           (loop-finish)))
-  (values))
+  (tagbody :keep-going
+     (let ((actor (dequeue *active-actors*)))
+       (cond (actor
+              (multiple-value-bind (val got-val-p)
+                  (dequeue (actor-queue actor))
+                (cond (got-val-p
+                       (let ((*current-actor* actor))
+                         (funcall (actor-on-receive actor) val))
+                       (enqueue actor *active-actors*)
+                       (notify-actor-waiter))
+                      (t
+                       (unless (compare-and-swap (actor-active-p actor) t nil)
+                         (enqueue actor *active-actors*)))))
+              (values))
+             (blockp
+              (wait-for-actors)
+              (go :keep-going))
+             (t
+              (values))))))
 
 ;;;
 ;;; Event threads
