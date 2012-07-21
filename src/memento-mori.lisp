@@ -2,6 +2,7 @@
   (:use #:cl #:alexandria #:memento-mori.utils #:memento-mori.queue)
   (:nicknames #:mori)
   (:export #:send
+           #:handle-message
            #:spawn
            #:current-actor
            #:event-loop
@@ -15,7 +16,7 @@
 (defstruct actor
   (queue (make-queue))
   active-p
-  on-receive)
+  driver)
 
 (defmethod print-object ((actor actor) stream)
   (print-unreadable-object (actor stream :type t :identity t)))
@@ -36,8 +37,14 @@
     (enqueue actor *active-actors*))
   message)
 
-(defun spawn (on-receive)
-  (make-actor :on-receive on-receive))
+(defun spawn (driver)
+  (make-actor :driver driver))
+
+(defgeneric handle-message (driver message)
+  (:method ((driver function) message)
+    (funcall driver message))
+  (:method ((driver symbol) message)
+    (funcall driver message)))
 
 ;;;
 ;;; Event loop
@@ -53,7 +60,7 @@
                   (dequeue (actor-queue actor))
                 (cond (got-val-p
                        (let ((*current-actor* actor))
-                         (funcall (actor-on-receive actor) val))
+                         (handle-message (actor-driver actor) val))
                        (enqueue actor *active-actors*)
                        (notify-actor-waiter))
                       (t
