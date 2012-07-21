@@ -86,3 +86,18 @@
   (when (compare-and-swap (svref *idle-thread-p* 0) t nil)
     (bt:with-lock-held (*actor-activity-lock*)
       (bt:condition-notify *actor-activity-condvar*))))
+
+;;;
+;;; Testing
+;;;
+(defun test (&optional (message-count 1000000))
+  (let ((test-actors
+         (loop repeat 10 collect
+              (spawn
+               (lambda (x &aux (counter (car x)) (start-time (cdr x)))
+                 (if (> counter 0)
+                     (send (current-actor) (cons (1- counter) start-time))
+                     (print `(stop time ,(/ (- (get-internal-real-time) start-time)
+                                            internal-time-units-per-second 1.0)))))))))
+    (loop for actor in test-actors
+         do (send actor (cons message-count (get-internal-real-time))))))
