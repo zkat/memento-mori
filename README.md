@@ -13,12 +13,14 @@ To load "memento-mori":
 ; Loading "memento-mori"
 
 (MEMENTO-MORI)
-CL-USER> (loop repeat 6 do (mori:start-event-thread))
-NIL
-CL-USER> (mori:send (mori:spawn #'print) "Hello, world!")
-
-"Hello, world!" "Hello, world!"
-CL-USER>     
+CL-USER> (defparameter *scheduler* (mori:make-threaded-scheduler 6))
+*SCHEDULER*
+CL-USER> *scheduler*
+#<THREADED-SCHEDULER [6 threads] #x302000E02CFD>
+CL-USER> (mori:send (mori:spawn #'print :scheduler *scheduler*) "Hello, world!")
+"Hello, world!"
+"Hello, world!"
+CL-USER>
 
 ```
 
