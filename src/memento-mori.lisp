@@ -1,19 +1,23 @@
 (cl:defpackage #:memento-mori
   (:use #:cl #:alexandria #:memento-mori.utils #:memento-mori.queue)
   (:nicknames #:mori)
-  (:export #:send
-           #:handle-message
-           #:spawn
-           #:current-actor
-           #:event-loop
-           #:event-step
-           #:start-event-thread))
+  (:export
+   ;; Actors
+   #:spawn
+   #:current-actor
+   #:send
+   #:handle-message
+   #:actor-scheduler
+   ;; Schedulers
+   #:make-threaded-scheduler
+   #:stop-threaded-scheduler))
 (cl:in-package #:memento-mori)
 
 ;;;
 ;;; Actors
 ;;;
 (defstruct actor
+  scheduler
   (queue (make-queue))
   active-p
   driver)
@@ -21,10 +25,8 @@
 (defmethod print-object ((actor actor) stream)
   (print-unreadable-object (actor stream :type t :identity t)))
 
-(defvar *active-actors* (make-queue))
-(defvar *actor-activity-lock* (bt:make-lock))
-(defvar *actor-activity-condvar* (bt:make-condition-variable))
-(defvar *idle-thread-p* (vector nil))
+(defun spawn (driver &key (scheduler (actor-scheduler (current-actor))))
+  (make-actor :scheduler scheduler :driver driver))
 
 (defvar *current-actor*)
 (defun current-actor ()
@@ -32,13 +34,10 @@
 
 (defun send (actor message)
   (enqueue message (actor-queue actor))
-  (notify-actor-waiter)
-  (when (compare-and-swap (actor-active-p actor) nil t)
-    (enqueue actor *active-actors*))
+  (on-new-actor-message (actor-scheduler actor) actor)
   message)
 
-(defun spawn (driver)
-  (make-actor :driver driver))
+(defgeneric on-new-actor-message (scheduler actor))
 
 (defgeneric handle-message (driver message)
   (:method ((driver function) message)
@@ -47,64 +46,88 @@
     (funcall driver message)))
 
 ;;;
-;;; Event loop
+;;; Scheduler
 ;;;
-(defun event-loop ()
-  (loop (event-step)))
+(defgeneric event-step (scheduler))
 
-(defun event-step (&key (blockp t))
-  (tagbody :keep-going
-     (let ((actor (dequeue *active-actors*)))
-       (cond (actor
-              (multiple-value-bind (val got-val-p)
-                  (dequeue (actor-queue actor))
-                (cond (got-val-p
-                       (let ((*current-actor* actor))
-                         (handle-message (actor-driver actor) val))
-                       (enqueue actor *active-actors*)
-                       (notify-actor-waiter))
-                      (t
-                       (unless (compare-and-swap (actor-active-p actor) t nil)
-                         (enqueue actor *active-actors*)))))
-              (values))
-             (blockp
-              (wait-for-actors)
-              (go :keep-going))
-             (t
-              (values))))))
+(defstruct (threaded-scheduler (:constructor %make-threaded-scheduler))
+  (active-actors (make-queue))
+  (activity-lock (bt:make-lock))
+  (activity-condvar (bt:make-condition-variable))
+  idle-thread-p
+  threads)
 
-;;;
-;;; Event threads
-;;;
-(defun start-event-thread ()
-  (bt:make-thread 'event-loop))
+(defmethod print-object ((scheduler threaded-scheduler) stream)
+  (print-unreadable-object (scheduler stream :type t :identity t)
+    (format stream "[~a threads]" (length (threaded-scheduler-threads scheduler)))))
 
-;;;
-;;; Utils
-;;;
+(defun make-threaded-scheduler (thread-count)
+  (let* ((scheduler (%make-threaded-scheduler))
+         (threads (loop repeat thread-count collect
+                       (bt:make-thread (curry 'event-loop scheduler)))))
+    (setf (threaded-scheduler-threads scheduler) threads)
+    scheduler))
+
+(defun stop-threaded-scheduler (scheduler)
+  (map nil #'bt:destroy-thread (threaded-scheduler-threads scheduler))
+  (setf (threaded-scheduler-threads scheduler) nil))
+
+(defmethod on-new-actor-message ((scheduler threaded-scheduler) actor)
+  (notify-actor-waiter scheduler)
+  (when (compare-and-swap (actor-active-p actor) nil t)
+    (enqueue actor (threaded-scheduler-active-actors scheduler))))
+
+(defun event-loop (scheduler)
+  (loop (event-step scheduler)))
+
+(defmethod event-step ((scheduler threaded-scheduler))
+  (let ((queue (threaded-scheduler-active-actors scheduler)))
+    (tagbody :keep-going
+       (let ((actor (dequeue queue)))
+         (cond (actor
+                (multiple-value-bind (val got-val-p)
+                    (dequeue (actor-queue actor))
+                  (cond (got-val-p
+                         (let ((*current-actor* actor))
+                           (handle-message (actor-driver actor) val))
+                         (enqueue actor queue)
+                         (notify-actor-waiter scheduler))
+                        (t
+                         (unless (compare-and-swap (actor-active-p actor) t nil)
+                           (enqueue actor queue)))))
+                (values))
+               (t
+                (wait-for-actors scheduler)
+                (go :keep-going)))))))
+
 (declaim (inline wait-for-actors))
-(defun wait-for-actors ()
-  (bt:with-lock-held (*actor-activity-lock*)
-    (setf (svref *idle-thread-p* 0) t)
-    (bt:condition-wait *actor-activity-condvar* *actor-activity-lock*)))
+(defun wait-for-actors (scheduler)
+  (bt:with-lock-held ((threaded-scheduler-activity-lock scheduler))
+    (setf (threaded-scheduler-idle-thread-p scheduler) t)
+    (bt:condition-wait (threaded-scheduler-activity-condvar scheduler)
+                       (threaded-scheduler-activity-lock scheduler))))
 
 (declaim (inline notify-actor-waiter))
-(defun notify-actor-waiter ()
-  (when (compare-and-swap (svref *idle-thread-p* 0) t nil)
-    (bt:with-lock-held (*actor-activity-lock*)
-      (bt:condition-notify *actor-activity-condvar*))))
+(defun notify-actor-waiter (scheduler)
+  (when (compare-and-swap (threaded-scheduler-idle-thread-p scheduler)
+                          t nil)
+    (bt:with-lock-held ((threaded-scheduler-activity-lock scheduler))
+      (bt:condition-notify (threaded-scheduler-activity-condvar scheduler)))))
 
 ;;;
 ;;; Testing
 ;;;
-(defun test (&optional (message-count 1000000))
-  (let ((test-actors
-         (loop repeat 10 collect
-              (spawn
-               (lambda (x &aux (counter (car x)) (start-time (cdr x)))
-                 (if (> counter 0)
-                     (send (current-actor) (cons (1- counter) start-time))
-                     (print `(stop time ,(/ (- (get-internal-real-time) start-time)
-                                            internal-time-units-per-second 1.0)))))))))
-    (loop for actor in test-actors
-         do (send actor (cons message-count (get-internal-real-time))))))
+(defun test (&key (message-count 100000) (actor-count 10) (thread-count 6))
+  (let ((scheduler (make-threaded-scheduler thread-count)))
+    (flet ((handler (x)
+             (let ((counter (car x))
+                   (start-time (cdr x)))
+               (if (> counter 0)
+                   (send (current-actor) (cons (1- counter) start-time))
+                   (print `(stop time ,(/ (- (get-internal-real-time) start-time)
+                                          internal-time-units-per-second 1.0)))))))
+      (loop
+         repeat actor-count
+         for actor = (spawn #'handler :scheduler scheduler)
+         for message = (cons message-count (get-internal-real-time))
+         do (send actor message)))))
