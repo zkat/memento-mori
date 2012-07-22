@@ -30,8 +30,11 @@
 (defmethod print-object ((actor actor) stream)
   (print-unreadable-object (actor stream :type t :identity t)))
 
-(defun spawn (driver &key (scheduler (actor-scheduler (current-actor))))
-  (make-actor :scheduler scheduler :driver driver))
+(defun spawn (driver &key scheduler)
+  (when (and (null scheduler)
+             (null (current-actor)))
+    (error "A scheduler is required when SPAWN is called outside the context of an actor."))
+  (make-actor :scheduler (or scheduler (actor-scheduler (current-actor))) :driver driver))
 
 (defvar *current-actor* nil)
 (defun current-actor ()
