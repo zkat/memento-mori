@@ -1,0 +1,86 @@
+* Memento-mori [2/12]
+** DONE First-class threaded schedulers
+   Make schedulers into first-class objects that can be used to manage
+   scheduler threads and compartmentalize mori usage.
+** DONE Error capture
+   Capture any errors that happen during actor execution and terminate the
+   actor, instead of crashing the event thread.
+** TODO Exits and signals
+   Implement local and remote signals. This'll have to use the
+   interrupt-thread clusterfuck so we can actually interrupt execution
+   instead of waiting until an actor is done for a signal to be processed.
+
+   The following semantics might be acceptable: Regular exits do not
+   interrupt, as they do with the old mori. Instead, they add a message to
+   an exits queue. The exits queue takes precedent over the standard
+   queue. A special handler processes exits and stops actors as
+   appropriate. Actors will need a new 'dead' state of some sort so new
+   message sends don't trigger message handling. Killing an actor should
+   actually interrupt its current execution and be impossible to handle.
+*** DONE Exiting from self
+    Two kinds of exits can be signaled locally: exits, and errors. Both of
+    these set the actor state to 'dead', which prevents any future messages
+    from triggering a handle-message. Exits are not necessarily an error
+    condition, and can be given an arbitrary object as a reason. Unhandled
+    errors automatically trigger an exit for the actor, with the condition
+    object as the reason. Local perform a non-local exit from the current
+    point of execution.
+*** TODO Remote exits
+    There are two kinds of 'remote exits' (meaning, exits forced on an
+    actor from a different actor, instead of locally triggered): exit
+    signals and kill signals.
+
+    Exit signals do not interrupt an actor if it's active, but signal
+    processing for exits take precedence over regular messages. When an
+    exit signal is received by an actor, the next time it is scheduled, the
+    exit signal will set the actor's status to 'dead' and prevent future
+    processing of the actor.
+
+    Kill signals are special in that they take absolute precedence: They
+    interrupt an executing actor and prevent all further execution. When an
+    actor is killed, its status is set to 'dead' with reason
+    'killed'. Unlike all other types of exits, kill signals cannot be
+    handled and are not converted to messages when the actor is trapping
+    exits.
+**** DONE exit
+**** TODO kill
+     This one's trickier because it involves possibly interrupting a worker
+     thread, but only if it's possibly executing an actor, and even then
+     only go through with things if the interrupt actually ended up
+     happening at the right time. *shudder*
+** TODO Links
+   Links are bidirectional. Only one link can exist between actor
+   pairs. Actors cannot link to themselves. LINK creates a link, UNLINK
+   removes it.
+** TODO Monitors
+   Monitors are one-directional. Multiple monitors can exist for the same
+   direction in an actor pair. MONITOR returns a monitor object that can be
+   used to identify exit signals and remove the monitor with DEMONITOR.
+** TODO Registration
+   Actors may be named by symbols. Most things that accept 'actors' can
+   actually accept actor designators, which are either pointers to actual
+   actors, or symbols denoting named actors.
+   (send 'important-server "hi there")
+** TODO Higher-level actors
+*** TODO mori-fsm
+    API for easily defining and handling fsm-based actors.
+*** TODO mori-cc
+    API for easily defining and handling continuation-based actors.
+** TODO Supervisors
+   Implement a supervisor API
+
+** TODO single-threaded scheduler
+   For lisps that don't support threads, or for people who don't want to
+   use them.
+** TODO pinned actor scheduler
+   A scheduler that spawns a dedicated thread for every actor added to
+   it. These are important when actors must, for example, access FFI
+   without blocking other actors.
+
+** TODO Dynamic variables
+   Now that we only have a couple of threads with many small actors,
+   dynamic variables are a little weirder to deal with. How should they be
+   bound? I vote to punt for now.
+** TODO Hook up to conserv
+   Can this wrap/be wrapped by something like conserv so all network
+   clients are handled as actors?
