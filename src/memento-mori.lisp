@@ -63,7 +63,7 @@
             (remote-exit-reason remote-exit))))
 
 (defun exit (reason &optional (actor (current-actor)))
-  (assert (actor-p actor))
+  (assert (or (null actor) (actor-p actor)))
   (cond ((eq actor (current-actor))
          (signal (make-condition 'exit :reason reason)))
         ((actor-trap-exits-p actor)
