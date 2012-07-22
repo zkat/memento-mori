@@ -8,6 +8,8 @@
    #:send
    #:handle-message
    #:actor-scheduler
+   #:exit
+   #:exit-reason
    ;; Schedulers
    #:make-threaded-scheduler
    #:stop-threaded-scheduler))
@@ -19,6 +21,7 @@
 (defstruct actor
   scheduler
   (queue (make-queue))
+  (alive-p t)
   active-p
   driver)
 
@@ -33,8 +36,9 @@
   *current-actor*)
 
 (defun send (actor message)
-  (enqueue message (actor-queue actor))
-  (on-new-actor-message (actor-scheduler actor) actor)
+  (when (actor-alive-p actor)
+    (enqueue message (actor-queue actor))
+    (on-new-actor-message (actor-scheduler actor) actor))
   message)
 
 (defgeneric on-new-actor-message (scheduler actor))
@@ -44,6 +48,12 @@
     (funcall driver message))
   (:method ((driver symbol) message)
     (funcall driver message)))
+
+(define-condition exit (condition)
+  ((reason :initarg :reason :reader exit-reason)))
+
+(defun exit (reason)
+  (signal (make-condition 'exit :reason reason)))
 
 ;;;
 ;;; Scheduler
@@ -84,13 +94,12 @@
   (let ((queue (threaded-scheduler-active-actors scheduler)))
     (tagbody :keep-going
        (let ((actor (dequeue queue)))
-         (cond (actor
+         (cond ((and actor (actor-alive-p actor))
                 (multiple-value-bind (val got-val-p)
                     (dequeue (actor-queue actor))
                   (cond (got-val-p
-                         (let ((*current-actor* actor))
-                           (handle-message (actor-driver actor) val))
-                         (enqueue actor queue)
+                         (when (%handle-message actor val)
+                           (enqueue actor queue))
                          (notify-actor-waiter scheduler))
                         (t
                          (unless (compare-and-swap (actor-active-p actor) t nil)
@@ -99,6 +108,17 @@
                (t
                 (wait-for-actors scheduler)
                 (go :keep-going)))))))
+
+(defun %handle-message (actor msg)
+  (let ((*current-actor* actor))
+    (handler-case
+        (prog1 t
+          (handle-message (actor-driver actor) msg))
+      ((or error exit) (e)
+        (declare (ignore e))
+        (setf (actor-alive-p actor) nil
+              (actor-active-p actor) nil)
+        nil))))
 
 (declaim (inline wait-for-actors))
 (defun wait-for-actors (scheduler)
@@ -117,7 +137,7 @@
 ;;;
 ;;; Testing
 ;;;
-(defun test (&key (message-count 100000) (actor-count 10) (thread-count 6))
+(defun speed-test (&key (message-count 100000) (actor-count 10) (thread-count 6))
   (let ((scheduler (make-threaded-scheduler thread-count)))
     (flet ((handler (x)
              (let ((counter (car x))
@@ -131,3 +151,16 @@
          for actor = (spawn #'handler :scheduler scheduler)
          for message = (cons message-count (get-internal-real-time))
          do (send actor message)))))
+
+(defun local-exit-test ()
+  (let* ((scheduler (make-threaded-scheduler 2))
+         (actor (spawn (lambda (msg)
+                         (print "Got a message")
+                         (exit msg)
+                         (print "After exit"))
+                       :scheduler scheduler)))
+    (send actor 'fail)
+    (send actor 'again)
+    (sleep 1)
+    (stop-threaded-scheduler scheduler)
+    actor))
