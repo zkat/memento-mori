@@ -8,6 +8,9 @@
    #:send
    #:handle-message
    #:actor-scheduler
+   #:trap-exits-p
+   #:enable-trap-exits
+   #:disable-trap-exits
    #:exit
    #:exit-reason
    ;; Schedulers
@@ -53,6 +56,18 @@
     (funcall driver message))
   (:method ((driver symbol) message)
     (funcall driver message)))
+
+(defun trap-exits-p (&aux (actor (current-actor)))
+  (assert (not (null actor)))
+  (actor-trap-exits-p actor))
+
+(defun enable-trap-exits (&aux (actor (current-actor)))
+  (setf (actor-trap-exits-p actor) t)
+  (values))
+
+(defun disable-trap-exits (&aux (actor (curren-actor)))
+  (setf (actor-trap-exits-p actor) nil)
+  (values))
 
 (define-condition exit (condition)
   ((reason :initarg :reason :reader exit-reason)))

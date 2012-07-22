@@ -43,6 +43,19 @@
     handled and are not converted to messages when the actor is trapping
     exits.
 **** DONE exit
+**** TODO trap-exits
+     Look into the semantics of trap exits. In the following situation, the
+     actor will still exit:
+     | Actor A              | Actor B              |
+     | (disable-trap-exits) |                      |
+     |                      | (exit 'diaf actor-a) |
+     | (enable-trap-exits)  |                      |
+     | *kaput*              |                      |
+
+     Is this acceptable? It would most certainly be in a pre-emptive
+     world. Is it still acceptable in a world where 'diaf will definitely
+     not be processed until Actor A's current execution (the one which
+     called both disable-trap-exits and enable-trap-exits) is completed?
 **** TODO kill
      This one's trickier because it involves possibly interrupting a worker
      thread, but only if it's possibly executing an actor, and even then
