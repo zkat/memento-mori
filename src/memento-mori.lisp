@@ -23,7 +23,9 @@
   (queue (make-queue))
   (alive-p t)
   active-p
-  driver)
+  driver
+  exit-signal
+  trap-exits-p)
 
 (defmethod print-object ((actor actor) stream)
   (print-unreadable-object (actor stream :type t :identity t)))
@@ -31,7 +33,7 @@
 (defun spawn (driver &key (scheduler (actor-scheduler (current-actor))))
   (make-actor :scheduler scheduler :driver driver))
 
-(defvar *current-actor*)
+(defvar *current-actor* nil)
 (defun current-actor ()
   *current-actor*)
 
@@ -52,8 +54,28 @@
 (define-condition exit (condition)
   ((reason :initarg :reason :reader exit-reason)))
 
-(defun exit (reason)
-  (signal (make-condition 'exit :reason reason)))
+(defstruct remote-exit
+  (from nil :read-only t)
+  (reason nil :read-only t))
+(defmethod print-object ((remote-exit remote-exit) stream)
+  (print-unreadable-object (remote-exit stream :type t)
+    (format stream "~S"
+            (remote-exit-reason remote-exit))))
+
+(defun exit (reason &optional (actor (current-actor)))
+  (assert (actor-p actor))
+  (cond ((eq actor (current-actor))
+         (signal (make-condition 'exit :reason reason)))
+        ((actor-trap-exits-p actor)
+         (send actor (make-remote-exit :from (current-actor)
+                                       :reason reason)))
+        ((actor-alive-p actor)
+         (compare-and-swap (actor-exit-signal actor)
+                           nil
+                           (make-condition 'exit :reason reason))
+         (on-new-actor-message (actor-scheduler actor) actor))
+        (t nil))
+  (values))
 
 ;;;
 ;;; Scheduler
@@ -95,15 +117,18 @@
     (tagbody :keep-going
        (let ((actor (dequeue queue)))
          (cond ((and actor (actor-alive-p actor))
-                (multiple-value-bind (val got-val-p)
-                    (dequeue (actor-queue actor))
-                  (cond (got-val-p
-                         (when (%handle-message actor val)
-                           (enqueue actor queue))
-                         (notify-actor-waiter scheduler))
-                        (t
-                         (unless (compare-and-swap (actor-active-p actor) t nil)
-                           (enqueue actor queue)))))
+                (if-let (signal (actor-exit-signal actor))
+                  (setf (actor-alive-p actor) nil
+                        (actor-active-p actor) nil)
+                  (multiple-value-bind (val got-val-p)
+                      (dequeue (actor-queue actor))
+                    (cond (got-val-p
+                           (when (%handle-message actor val)
+                             (enqueue actor queue))
+                           (notify-actor-waiter scheduler))
+                          (t
+                           (unless (compare-and-swap (actor-active-p actor) t nil)
+                             (enqueue actor queue))))))
                 (values))
                (t
                 (wait-for-actors scheduler)
@@ -164,3 +189,15 @@
     (sleep 1)
     (stop-threaded-scheduler scheduler)
     actor))
+
+(defun remote-exit-test ()
+  (let* ((scheduler (make-threaded-scheduler 2))
+         (victim (spawn 'print :scheduler scheduler))
+         (bad-guy (spawn (rcurry 'exit victim) :scheduler scheduler)))
+    (send victim 'hi)
+    (send bad-guy 'mwahahaaaa)
+    (sleep 1)
+    (send victim 'rip)
+    (print (actor-alive-p victim))
+    (sleep 1)
+    (stop-threaded-scheduler scheduler)))
