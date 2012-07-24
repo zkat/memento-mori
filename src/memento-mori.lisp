@@ -13,6 +13,8 @@
    #:disable-trap-exits
    #:exit
    #:exit-reason
+   #:kill
+   #:killed
    ;; Schedulers
    #:make-threaded-scheduler
    #:stop-threaded-scheduler))
@@ -26,6 +28,7 @@
   (queue (make-queue))
   (alive-p t)
   active-p
+  thread
   driver
   exit-signal
   trap-exits-p)
@@ -33,11 +36,13 @@
 (defmethod print-object ((actor actor) stream)
   (print-unreadable-object (actor stream :type t :identity t)))
 
-(defun spawn (driver &key scheduler)
+(defun spawn (driver &key scheduler trap-exits-p)
   (when (and (null scheduler)
              (null (current-actor)))
     (error "A scheduler is required when SPAWN is called outside the context of an actor."))
-  (make-actor :scheduler (or scheduler (actor-scheduler (current-actor))) :driver driver))
+  (make-actor :scheduler (or scheduler (actor-scheduler (current-actor)))
+              :driver driver
+              :trap-exits-p trap-exits-p))
 
 (defvar *current-actor* nil)
 (defun current-actor ()
@@ -65,7 +70,7 @@
   (setf (actor-trap-exits-p actor) t)
   (values))
 
-(defun disable-trap-exits (&aux (actor (curren-actor)))
+(defun disable-trap-exits (&aux (actor (current-actor)))
   (setf (actor-trap-exits-p actor) nil)
   (values))
 
@@ -88,11 +93,28 @@
          (send actor (make-remote-exit :from (current-actor)
                                        :reason reason)))
         ((actor-alive-p actor)
-         (compare-and-swap (actor-exit-signal actor)
-                           nil
-                           (make-condition 'exit :reason reason))
-         (on-new-actor-message (actor-scheduler actor) actor))
+         (let ((exit (make-condition 'exit :reason reason)))
+           (when (compare-and-swap (actor-exit-signal actor) nil exit)
+             (when-let (thread (actor-thread actor))
+               (bt:interrupt-thread thread
+                                    (lambda ()
+                                      (when (eq thread (actor-thread actor))
+                                        (signal exit)))))
+             (on-new-actor-message (actor-scheduler actor) actor))))
         (t nil))
+  (values))
+
+(defun kill (actor)
+  (assert (actor-p actor))
+  (when (actor-alive-p actor)
+    (let ((exit (make-condition 'exit :reason 'killed)))
+      (when (compare-and-swap (actor-exit-signal actor) nil exit)
+        (when-let (thread (actor-thread actor))
+          (bt:interrupt-thread thread
+                               (lambda ()
+                                 (when (eq thread (actor-thread actor))
+                                   (signal exit)))))
+        (on-new-actor-message (actor-scheduler actor) actor))))
   (values))
 
 ;;;
@@ -132,36 +154,35 @@
 
 (defmethod event-step ((scheduler threaded-scheduler))
   (let ((queue (threaded-scheduler-active-actors scheduler)))
-    (tagbody :keep-going
-       (let ((actor (dequeue queue)))
-         (cond ((and actor (actor-alive-p actor))
-                (if-let (signal (actor-exit-signal actor))
-                  (setf (actor-alive-p actor) nil
-                        (actor-active-p actor) nil)
-                  (multiple-value-bind (val got-val-p)
-                      (dequeue (actor-queue actor))
-                    (cond (got-val-p
-                           (when (%handle-message actor val)
-                             (enqueue actor queue))
-                           (notify-actor-waiter scheduler))
-                          (t
-                           (unless (compare-and-swap (actor-active-p actor) t nil)
-                             (enqueue actor queue))))))
-                (values))
-               (t
-                (wait-for-actors scheduler)
-                (go :keep-going)))))))
-
-(defun %handle-message (actor msg)
-  (let ((*current-actor* actor))
-    (handler-case
-        (prog1 t
-          (handle-message (actor-driver actor) msg))
-      ((or error exit) (e)
-        (declare (ignore e))
-        (setf (actor-alive-p actor) nil
-              (actor-active-p actor) nil)
-        nil))))
+    (without-interrupts
+      (tagbody :keep-going
+         (let ((actor (dequeue queue)))
+           (cond ((and actor (actor-alive-p actor))
+                  (setf (actor-thread actor) (bt:current-thread))
+                  (if-let (signal (actor-exit-signal actor))
+                    (setf (actor-alive-p actor) nil
+                          (actor-active-p actor) nil)
+                    (multiple-value-bind (val got-val-p)
+                        (dequeue (actor-queue actor))
+                      (cond (got-val-p
+                             (let ((*current-actor* actor))
+                               (handler-case
+                                   (with-interrupts
+                                     (handle-message (actor-driver actor) val)
+                                     (enqueue actor queue))
+                                 ((or error exit) (e)
+                                   (declare (ignore e))
+                                   (setf (actor-alive-p actor) nil
+                                         (actor-active-p actor) nil))))
+                             (notify-actor-waiter scheduler))
+                            (t
+                             (unless (compare-and-swap (actor-active-p actor) t nil)
+                               (enqueue actor queue))))))
+                  (setf (actor-thread actor) nil)
+                  (values))
+                 (t
+                  (wait-for-actors scheduler)
+                  (go :keep-going))))))))
 
 (declaim (inline wait-for-actors))
 (defun wait-for-actors (scheduler)
@@ -210,7 +231,12 @@
 
 (defun remote-exit-test ()
   (let* ((scheduler (make-threaded-scheduler 2))
-         (victim (spawn 'print :scheduler scheduler))
+         (victim (spawn (lambda (msg)
+                          (print "Got a message")
+                          (print msg)
+                          (sleep 5)
+                          (print "Completed!"))
+                        :scheduler scheduler))
          (bad-guy (spawn (rcurry 'exit victim) :scheduler scheduler)))
     (send victim 'hi)
     (send bad-guy 'mwahahaaaa)
@@ -219,3 +245,18 @@
     (print (actor-alive-p victim))
     (sleep 1)
     (stop-threaded-scheduler scheduler)))
+
+(defun trap-exit-test ()
+  (let* ((scheduler (make-threaded-scheduler 2))
+         (trapping (spawn (lambda (msg)
+                            (print "Got a message.")
+                            (print msg))
+                          :scheduler scheduler
+                          :trap-exits-p t)))
+    (send trapping 'hello)
+    (sleep 1)
+    (exit 'regular-exit trapping)
+    (sleep 1)
+    (kill trapping)
+    (sleep 1)
+    (actor-alive-p trapping)))
