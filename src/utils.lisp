@@ -1,7 +1,9 @@
 (cl:defpackage #:memento-mori.utils
   (:use :cl)
   (:export
-   #:compare-and-swap))
+   #:compare-and-swap
+   #:without-interrupts
+   #:with-interrupts))
 (cl:in-package #:memento-mori.utils)
 
 (defmacro compare-and-swap (place old-value new-value)
@@ -16,3 +18,21 @@
   #+allegro
   `(excl:atomic-conditional-setf ,place ,new-value ,old-value)
   #-(or allegro lispworks ccl sbcl) `(error "Not supported."))
+
+(defmacro without-interrupts (&body body)
+  #+sbcl
+  `(sb-sys:without-interrupts ,@body)
+  #+ccl
+  `(ccl:without-interrupts ,@body)
+  #-(or ccl sbcl)
+  (error "NOT SUPPORTED"))
+
+(defmacro with-interrupts (&body body)
+  #+sbcl
+  `(sb-sys:allow-with-interrupts
+    (sb-sys:with-interrupts
+      ,@body))
+  #+ccl
+  `(ccl:with-interrupts-enabled ,@body)
+  #-(or ccl sbcl)
+  (error "NOT SUPPORTED"))
