@@ -1,11 +1,11 @@
-* Memento-mori [2/12]
+* Memento-mori [3/14]
 ** DONE First-class threaded schedulers
    Make schedulers into first-class objects that can be used to manage
    scheduler threads and compartmentalize mori usage.
 ** DONE Error capture
    Capture any errors that happen during actor execution and terminate the
    actor, instead of crashing the event thread.
-** TODO Exits and signals
+** DONE Exits and signals
    Implement local and remote signals. This'll have to use the
    interrupt-thread clusterfuck so we can actually interrupt execution
    instead of waiting until an actor is done for a signal to be processed.
@@ -25,7 +25,7 @@
     errors automatically trigger an exit for the actor, with the condition
     object as the reason. Local perform a non-local exit from the current
     point of execution.
-*** TODO Remote exits
+*** DONE Remote exits
     There are two kinds of 'remote exits' (meaning, exits forced on an
     actor from a different actor, instead of locally triggered): exit
     signals and kill signals.
@@ -43,7 +43,21 @@
     handled and are not converted to messages when the actor is trapping
     exits.
 **** DONE exit
-**** TODO trap-exits
+**** DONE kill
+     This one's trickier because it involves possibly interrupting a worker
+     thread, but only if it's possibly executing an actor, and even then
+     only go through with things if the interrupt actually ended up
+     happening at the right time. *shudder*
+** TODO Links
+   Links are bidirectional. Only one link can exist between actor
+   pairs. Actors cannot link to themselves. LINK creates a link, UNLINK
+   removes it.
+*** TODO basic functionality
+    Including linking/unlinking/exit signaling
+*** TODO guaranteed exit signaling
+    If an actor is dead or dies, the linking actor MUST receive the
+    appropriate exit signal.
+** TODO trap-exits
      Look into the semantics of trap exits. In the following situation, the
      actor will still exit:
      | Actor A              | Actor B              |
@@ -56,24 +70,16 @@
      world. Is it still acceptable in a world where 'diaf will definitely
      not be processed until Actor A's current execution (the one which
      called both disable-trap-exits and enable-trap-exits) is completed?
-**** TODO kill
-     This one's trickier because it involves possibly interrupting a worker
-     thread, but only if it's possibly executing an actor, and even then
-     only go through with things if the interrupt actually ended up
-     happening at the right time. *shudder*
-** TODO Links
-   Links are bidirectional. Only one link can exist between actor
-   pairs. Actors cannot link to themselves. LINK creates a link, UNLINK
-   removes it.
 ** TODO Monitors
    Monitors are one-directional. Multiple monitors can exist for the same
    direction in an actor pair. MONITOR returns a monitor object that can be
    used to identify exit signals and remove the monitor with DEMONITOR.
 ** TODO Registration
-   Actors may be named by symbols. Most things that accept 'actors' can
-   actually accept actor designators, which are either pointers to actual
-   actors, or symbols denoting named actors.
-   (send 'important-server "hi there")
+   Actors may be named by symbols.
+** TODO Actor designators
+   Most things that accept 'actors' can actually accept actor designators,
+   which are either pointers to actual actors, or symbols denoting named
+   actors.  (send 'important-server "hi there")
 ** TODO Higher-level actors
 *** TODO mori-fsm
     API for easily defining and handling fsm-based actors.
