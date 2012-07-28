@@ -294,7 +294,6 @@
                  (throw +unhandled-exit+ nil))))
      finally (return t)))
 
-(declaim (inline wait-for-actors))
 (defun wait-for-actors (scheduler)
   (bt:with-lock-held ((threaded-scheduler-activity-lock scheduler))
     (atomic-incf (threaded-scheduler-idle-thread-count scheduler))
@@ -302,13 +301,11 @@
                        (threaded-scheduler-activity-lock scheduler))
     (atomic-decf (threaded-scheduler-idle-thread-count scheduler))))
 
-(declaim (inline notify-actor-waiter))
 (defun notify-actor-waiter (scheduler)
   (when (plusp (threaded-scheduler-idle-thread-count scheduler))
     (bt:with-lock-held ((threaded-scheduler-activity-lock scheduler))
       (bt:condition-notify (threaded-scheduler-activity-condvar scheduler)))))
 
-(declaim (inline actor-death))
 (defun actor-death (actor exit)
   (setf (actor-alive-p actor) nil
         (actor-active-p actor) nil)
