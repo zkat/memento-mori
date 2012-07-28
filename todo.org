@@ -1,4 +1,4 @@
-* Memento-mori [8/22]
+* Memento-mori [8/23]
 ** DONE First-class threaded schedulers
    Make schedulers into first-class objects that can be used to manage
    scheduler threads and compartmentalize mori usage.
@@ -140,6 +140,8 @@
    general idea of work stealing is good, but a bit more effort needs to be
    put into balancing the load across the scheduler threads. See
    https://groups.google.com/forum/?fromgroups#!topic/erlang-programming/0axWwyWq8Aw
+** TODO Improve persistent dynamic bindings
+   They kinda suck right now. Should they even be kept?...
 ** TODO Bring links-test back up to speed
    Tracking number of idle threads. We were doing 60k+/s on links-test, now
    we're down to 20k/s. :(
