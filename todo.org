@@ -1,4 +1,4 @@
-* Memento-mori [8/23]
+* Memento-mori [9/23]
 ** DONE First-class threaded schedulers
    Make schedulers into first-class objects that can be used to manage
    scheduler threads and compartmentalize mori usage.
@@ -90,16 +90,7 @@
    Now that we only have a couple of threads with many small actors,
    dynamic variables are a little weirder to deal with. How should they be
    bound? I vote to punt for now.
-** TODO Links
-   Links are bidirectional. Only one link can exist between actor
-   pairs. Actors cannot link to themselves. LINK creates a link, UNLINK
-   removes it.
-*** DONE basic functionality
-    Including linking/unlinking/exit signaling
-*** TODO guaranteed exit signaling
-    If an actor is dead or dies, the linking actor MUST receive the
-    appropriate exit signal.
-** TODO Debugging
+** DONE Debugging
    Allow actors to invoke the debugger on error (and find a way to
    automatically restart threaded-scheduler threads when they get
    killed...)
@@ -109,6 +100,15 @@
    used to identify exit signals and remove the monitor with DEMONITOR.
 ** TODO Registration
    Actors may be named by symbols.
+** TODO Links
+   Links are bidirectional. Only one link can exist between actor
+   pairs. Actors cannot link to themselves. LINK creates a link, UNLINK
+   removes it.
+*** DONE basic functionality
+    Including linking/unlinking/exit signaling
+*** TODO guaranteed exit signaling
+    If an actor is dead or dies, the linking actor MUST receive the
+    appropriate exit signal.
 ** TODO Timer
    ...How in the world do I do this without using a priority queue?!
    This could be implemented by having a 'system' process
@@ -117,6 +117,14 @@
    which are either pointers to actual actors, or symbols denoting named
    actors.  (send 'important-server "hi there")
 ** TODO Higher-level actors
+*** TODO mori-srv
+    Provides a wrapper around regular message sending, an init/shutdown
+    API, and the ability to do selective receives (by changing a
+    selective-receive-function which will do the necessary secondary
+    message queue magic). Unlike gen_server, it doesn't provide synchronous
+    calls (because we're event-based), and it doesn't do anything terribly
+    special about state (since standard actors have the same capabilities
+    for maintaining state).
 *** TODO mori-fsm
     API for easily defining and handling fsm-based actors.
 *** TODO mori-cc
