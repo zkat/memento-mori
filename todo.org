@@ -1,4 +1,4 @@
-* Memento-mori [7/21]
+* Memento-mori [8/22]
 ** DONE First-class threaded schedulers
    Make schedulers into first-class objects that can be used to manage
    scheduler threads and compartmentalize mori usage.
@@ -86,6 +86,10 @@
    was. :(
 
    Threads aren't waking up properly.
+** DONE Dynamic variables
+   Now that we only have a couple of threads with many small actors,
+   dynamic variables are a little weirder to deal with. How should they be
+   bound? I vote to punt for now.
 ** TODO Links
    Links are bidirectional. Only one link can exist between actor
    pairs. Actors cannot link to themselves. LINK creates a link, UNLINK
@@ -95,11 +99,6 @@
 *** TODO guaranteed exit signaling
     If an actor is dead or dies, the linking actor MUST receive the
     appropriate exit signal.
-** TODO Bring links-test back up to speed
-   Tracking number of idle threads. We were doing 60k+/s on links-test, now
-   we're down to 20k/s. :(
-
-   Note: When I drop the thread count to 2, I get a blazing 110k/s on links-test.
 ** TODO Debugging
    Allow actors to invoke the debugger on error (and find a way to
    automatically restart threaded-scheduler threads when they get
@@ -111,6 +110,8 @@
 ** TODO Registration
    Actors may be named by symbols.
 ** TODO Timer
+   ...How in the world do I do this without using a priority queue?!
+   This could be implemented by having a 'system' process
 ** TODO Actor designators
    Most things that accept 'actors' can actually accept actor designators,
    which are either pointers to actual actors, or symbols denoting named
@@ -131,12 +132,22 @@
    it. These are important when actors must, for example, access FFI
    without blocking other actors.
 
-** TODO Dynamic variables
-   Now that we only have a couple of threads with many small actors,
-   dynamic variables are a little weirder to deal with. How should they be
-   bound? I vote to punt for now.
 ** TODO Hook up to conserv
    Can this wrap/be wrapped by something like conserv so all network
    clients are handled as actors?
+** TODO Work-stealing task queue
+   The considerations for a system like this are a little special. The
+   general idea of work stealing is good, but a bit more effort needs to be
+   put into balancing the load across the scheduler threads. See
+   https://groups.google.com/forum/?fromgroups#!topic/erlang-programming/0axWwyWq8Aw
+** TODO Bring links-test back up to speed
+   Tracking number of idle threads. We were doing 60k+/s on links-test, now
+   we're down to 20k/s. :(
+
+   Note: When I drop the thread count to 2, I get a blazing 110k/s on
+   links-test.
+
+   This is probably going to involve replacing the scheduler stuff with
+   something more acceptable.
 ** TODO See if signal queue can be left behind
    It involves extra consing which may be unnecessary.
