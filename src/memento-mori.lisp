@@ -205,7 +205,8 @@
            (cond ((and actor (actor-alive-p actor))
                   (setf (actor-thread actor) (bt:current-thread))
                   (catch +unhandled-exit+
-                    (process-signals actor)
+                    (let ((*current-actor* actor))
+                      (process-signals actor))
                     (multiple-value-bind (val got-val-p)
                         (dequeue (actor-queue actor))
                       (cond (got-val-p
