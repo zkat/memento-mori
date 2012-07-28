@@ -26,6 +26,8 @@
    #:stop-threaded-scheduler))
 (cl:in-package #:memento-mori)
 
+#+nil
+(declaim (optimize speed))
 ;;;
 ;;; Actors
 ;;;
@@ -86,9 +88,6 @@
            (pushnew actor (actor-links self) :test 'eq)
            (pushnew self (actor-links actor) :test 'eq))
           (t
-           ;; TODO - this is no good. Need to clone the signal-exit
-           ;; semantics from old-mori here, since link-related exits need
-           ;; to be trappable.
            (exit 'actor-dead))))
   (values))
 
@@ -172,7 +171,9 @@
 
 (defmethod print-object ((scheduler threaded-scheduler) stream)
   (print-unreadable-object (scheduler stream :type t :identity t)
-    (format stream "[~a threads]" (length (threaded-scheduler-threads scheduler)))))
+    (format stream "~a threads (~a idle)"
+            (length (threaded-scheduler-threads scheduler))
+            (threaded-scheduler-idle-thread-count scheduler))))
 
 (defun make-threaded-scheduler (thread-count)
   (let* ((scheduler (%make-threaded-scheduler))
