@@ -25,24 +25,29 @@
 ;;;
 (defstruct actor
   scheduler
+  (signals (make-queue))
   (queue (make-queue))
   (alive-p t)
   active-p
   thread
   driver
   exit-signal
+  links
   trap-exits-p)
 
 (defmethod print-object ((actor actor) stream)
   (print-unreadable-object (actor stream :type t :identity t)))
 
-(defun spawn (driver &key scheduler trap-exits-p)
+(defun spawn (driver &key scheduler trap-exits-p linkp)
   (when (and (null scheduler)
              (null (current-actor)))
     (error "A scheduler is required when SPAWN is called outside the context of an actor."))
-  (make-actor :scheduler (or scheduler (actor-scheduler (current-actor)))
-              :driver driver
-              :trap-exits-p trap-exits-p))
+  (let ((actor (make-actor :scheduler (or scheduler (actor-scheduler (current-actor)))
+                           :driver driver
+                           :trap-exits-p trap-exits-p)))
+    (when linkp
+      (link actor))
+    actor))
 
 (defvar *current-actor* nil)
 (defun current-actor ()
@@ -62,6 +67,42 @@
   (:method ((driver symbol) message)
     (funcall driver message)))
 
+;;;
+;;; Links
+;;;
+
+;; NOTE - yes, this is a cop-out. :(
+(defvar *link-lock* (bt:make-lock))
+
+(defun link (actor &aux (self (current-actor)))
+  (bt:with-lock-held (*link-lock*)
+    (cond ((actor-alive-p actor)
+           (pushnew actor (actor-links self) :test 'eq)
+           (pushnew self (actor-links actor) :test 'eq))
+          (t
+           ;; TODO - this is no good. Need to clone the signal-exit
+           ;; semantics from old-mori here, since link-related exits need
+           ;; to be trappable.
+           (exit 'actor-dead))))
+  (values))
+
+(defun unlink (actor &aux (self (current-actor)))
+  (bt:with-lock-held (*link-lock*)
+    (removef (actor-links actor) self :test 'eq)
+    (removef (actor-links self) actor :test 'eq))
+  (values))
+
+(defun notify-links (actor exit)
+  (bt:with-lock-held (*link-lock*)
+    (when-let (links (actor-links actor))
+      (map nil (lambda (linked)
+                 (exit exit linked)
+                 (deletef (actor-links linked) actor :test #'eq))
+           links))))
+
+;;;
+;;; Exits
+;;;
 (defun trap-exits-p (&aux (actor (current-actor)))
   (assert (not (null actor)))
   (actor-trap-exits-p actor))
@@ -76,46 +117,40 @@
 
 (define-condition exit (condition)
   ((reason :initarg :reason :reader exit-reason)))
+(define-condition %killed (condition) ())
 
 (defstruct remote-exit
   (from nil :read-only t)
   (reason nil :read-only t))
 (defmethod print-object ((remote-exit remote-exit) stream)
   (print-unreadable-object (remote-exit stream :type t)
-    (format stream "~S"
-            (remote-exit-reason remote-exit))))
+    (format stream "~S [from ~A]"
+            (remote-exit-reason remote-exit)
+            (remote-exit-from remote-exit))))
+
+(defparameter +kill-signal+ (gensym "KILL-SIGNAL-"))
 
 (defun exit (reason &optional (actor (current-actor)))
   (assert (or (null actor) (actor-p actor)))
   (cond ((eq actor (current-actor))
-         (signal (make-condition 'exit :reason reason)))
-        ((actor-trap-exits-p actor)
-         (send actor (make-remote-exit :from (current-actor)
-                                       :reason reason)))
+         (signal (if (eq reason +kill-signal+)
+                     (make-condition '%killed)
+                     (make-condition 'exit :reason reason))))
         ((actor-alive-p actor)
-         (let ((exit (make-condition 'exit :reason reason)))
-           (when (compare-and-swap (actor-exit-signal actor) nil exit)
-             (when-let (thread (actor-thread actor))
-               (bt:interrupt-thread thread
-                                    (lambda ()
-                                      (when (eq thread (actor-thread actor))
-                                        (signal exit)))))
-             (on-new-actor-message (actor-scheduler actor) actor))))
+         (enqueue (make-remote-exit :from (current-actor) :reason reason)
+                  (actor-signals actor))
+         (when-let (thread (actor-thread actor))
+           (bt:interrupt-thread thread
+                                (lambda ()
+                                  (when (eq thread (actor-thread actor))
+                                    (process-signals actor)))))
+         (on-new-actor-message (actor-scheduler actor) actor))
         (t nil))
   (values))
 
 (defun kill (actor)
   (assert (actor-p actor))
-  (when (actor-alive-p actor)
-    (let ((exit (make-condition 'exit :reason 'killed)))
-      (when (compare-and-swap (actor-exit-signal actor) nil exit)
-        (when-let (thread (actor-thread actor))
-          (bt:interrupt-thread thread
-                               (lambda ()
-                                 (when (eq thread (actor-thread actor))
-                                   (signal exit)))))
-        (on-new-actor-message (actor-scheduler actor) actor))))
-  (values))
+  (exit +kill-signal+ actor))
 
 ;;;
 ;;; Scheduler
@@ -152,6 +187,8 @@
 (defun event-loop (scheduler)
   (loop (event-step scheduler)))
 
+(defparameter +unhandled-exit+ (gensym "UNHANDLED-EXIT-"))
+
 (defmethod event-step ((scheduler threaded-scheduler))
   (let ((queue (threaded-scheduler-active-actors scheduler)))
     (without-interrupts
@@ -159,30 +196,46 @@
          (let ((actor (dequeue queue)))
            (cond ((and actor (actor-alive-p actor))
                   (setf (actor-thread actor) (bt:current-thread))
-                  (if-let (signal (actor-exit-signal actor))
-                    (setf (actor-alive-p actor) nil
-                          (actor-active-p actor) nil)
-                    (multiple-value-bind (val got-val-p)
-                        (dequeue (actor-queue actor))
-                      (cond (got-val-p
-                             (let ((*current-actor* actor))
-                               (handler-case
-                                   (with-interrupts
-                                     (handle-message (actor-driver actor) val)
-                                     (enqueue actor queue))
-                                 ((or error exit) (e)
-                                   (declare (ignore e))
-                                   (setf (actor-alive-p actor) nil
-                                         (actor-active-p actor) nil))))
-                             (notify-actor-waiter scheduler))
-                            (t
-                             (unless (compare-and-swap (actor-active-p actor) t nil)
-                               (enqueue actor queue))))))
+                  (catch +unhandled-exit+
+                    (when (process-signals actor)
+                      (multiple-value-bind (val got-val-p)
+                          (dequeue (actor-queue actor))
+                        (cond (got-val-p
+                               (let ((*current-actor* actor))
+                                 (handler-case
+                                     (with-interrupts
+                                       (handle-message (actor-driver actor) val)
+                                       (enqueue actor queue))
+                                   (error (e)
+                                     (actor-death actor (make-condition 'exit :reason e)))
+                                   (exit (e)
+                                     (actor-death actor e))))
+                               (notify-actor-waiter scheduler))
+                              (t
+                               (unless (compare-and-swap (actor-active-p actor) t nil)
+                                 (enqueue actor queue)))))))
                   (setf (actor-thread actor) nil)
                   (values))
                  (t
                   (wait-for-actors scheduler)
                   (go :keep-going))))))))
+
+(defun process-signals (actor)
+  (loop for signal = (dequeue (actor-signals actor))
+     while signal
+     do (let ((reason (remote-exit-reason signal)))
+          (cond ((and (actor-trap-exits-p actor)
+                      (not (eq reason +kill-signal+)))
+                 (enqueue signal (actor-queue actor)))
+                (t
+                 (actor-death actor
+                              (make-condition
+                               'exit
+                               :reason (if (eq reason +kill-signal+)
+                                           'killed
+                                           reason)))
+                 (throw +unhandled-exit+ nil))))
+     finally (return t)))
 
 (declaim (inline wait-for-actors))
 (defun wait-for-actors (scheduler)
@@ -197,6 +250,11 @@
                           t nil)
     (bt:with-lock-held ((threaded-scheduler-activity-lock scheduler))
       (bt:condition-notify (threaded-scheduler-activity-condvar scheduler)))))
+
+(defun actor-death (actor exit)
+  (setf (actor-alive-p actor) nil
+        (actor-active-p actor) nil)
+  (notify-links actor exit))
 
 ;;;
 ;;; Testing
@@ -246,7 +304,7 @@
     (sleep 1)
     (stop-threaded-scheduler scheduler)))
 
-(defun trap-exit-test ()
+(defun trap-exits-test ()
   (let* ((scheduler (make-threaded-scheduler 2))
          (trapping (spawn (lambda (msg)
                             (print msg)
@@ -263,3 +321,22 @@
     (kill trapping)
     (sleep 1)
     (actor-alive-p trapping)))
+
+(defun links-test (n &optional (scheduler (make-threaded-scheduler 6)))
+  (labels ((chain (n)
+             (cond ((= n 0)
+                    (error "I can't take this anymore!"))
+                   (t
+                    (send (spawn #'chain :linkp t) (1- n))))))
+    (send
+     (spawn (let ((start-time (get-internal-real-time)))
+              (lambda (msg)
+                (if (integerp msg)
+                    (chain msg)
+                    (let ((total (/ (- (get-internal-real-time) start-time)
+                                    internal-time-units-per-second)))
+                      (format t "~&Chain done. ~a actors in ~f seconds (~f/s).~%"
+                              n total (/ n total))))))
+            :trap-exits-p t
+            :scheduler scheduler)
+     n)))
