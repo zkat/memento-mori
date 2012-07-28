@@ -203,23 +203,23 @@
            (cond ((and actor (actor-alive-p actor))
                   (setf (actor-thread actor) (bt:current-thread))
                   (catch +unhandled-exit+
-                    (when (process-signals actor)
-                      (multiple-value-bind (val got-val-p)
-                          (dequeue (actor-queue actor))
-                        (cond (got-val-p
-                               (let ((*current-actor* actor))
-                                 (handler-case
-                                     (with-interrupts
-                                       (handle-message (actor-driver actor) val)
-                                       (enqueue actor queue))
-                                   (error (e)
-                                     (actor-death actor (make-condition 'exit :reason e)))
-                                   (exit (e)
-                                     (actor-death actor e))))
-                               (notify-actor-waiter scheduler))
-                              (t
-                               (unless (compare-and-swap (actor-active-p actor) t nil)
-                                 (enqueue actor queue)))))))
+                    (process-signals actor)
+                    (multiple-value-bind (val got-val-p)
+                        (dequeue (actor-queue actor))
+                      (cond (got-val-p
+                             (let ((*current-actor* actor))
+                               (handler-case
+                                   (with-interrupts
+                                     (handle-message (actor-driver actor) val)
+                                     (enqueue actor queue))
+                                 (error (e)
+                                   (actor-death actor (make-condition 'exit :reason e)))
+                                 (exit (e)
+                                   (actor-death actor e))))
+                             (notify-actor-waiter scheduler))
+                            (t
+                             (unless (compare-and-swap (actor-active-p actor) t nil)
+                               (enqueue actor queue))))))
                   (setf (actor-thread actor) nil)
                   (values))
                  (t
