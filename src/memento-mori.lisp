@@ -134,7 +134,7 @@
             (remote-exit-reason remote-exit)
             (remote-exit-from remote-exit))))
 
-(defparameter +kill-signal+ (gensym "KILL-SIGNAL-"))
+(defvar +kill-signal+ (gensym "KILL-SIGNAL-"))
 
 (defun exit (reason &optional (actor (current-actor)))
   (assert (or (null actor) (actor-p actor)))
@@ -195,7 +195,7 @@
 (defun event-loop (scheduler)
   (loop (event-step scheduler)))
 
-(defparameter +unhandled-exit+ (gensym "UNHANDLED-EXIT-"))
+(defvar +unhandled-exit+ (gensym "UNHANDLED-EXIT-"))
 
 (defmethod event-step ((scheduler threaded-scheduler))
   (let ((queue (threaded-scheduler-active-actors scheduler)))
