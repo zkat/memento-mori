@@ -25,12 +25,12 @@
   #-(or allegro lispworks ccl sbcl) `(error "Not supported."))
 
 (defmacro atomic-incf (place &optional (increment 1))
-  `(loop for num = ,place for new-val = (+ num ,increment)
-      until (compare-and-swap ,place num new-val)
+  `(loop for num = ,place for new-val = (+ (the fixnum num) (the fixnum ,increment))
+      until (compare-and-swap ,place (the fixnum num) new-val)
       finally (return new-val)))
 
 (defmacro atomic-decf (place &optional (decrement 1))
-  `(atomic-incf ,place (- ,decrement)))
+  `(atomic-incf ,place (- (the fixnum ,decrement))))
 
 (defmacro without-interrupts (&body body)
   #+sbcl
