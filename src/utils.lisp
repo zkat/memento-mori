@@ -2,6 +2,8 @@
   (:use :cl)
   (:export
    #:compare-and-swap
+   #:atomic-incf
+   #:atomic-decf
    #:without-interrupts
    #:with-interrupts
    #:make-light-queue
@@ -21,6 +23,14 @@
   #+allegro
   `(excl:atomic-conditional-setf ,place ,new-value ,old-value)
   #-(or allegro lispworks ccl sbcl) `(error "Not supported."))
+
+(defmacro atomic-incf (place &optional (increment 1))
+  `(loop for num = ,place for new-val = (+ num ,increment)
+      until (compare-and-swap ,place num new-val)
+      finally (return new-val)))
+
+(defmacro atomic-decf (place &optional (decrement 1))
+  `(atomic-incf ,place (- ,decrement)))
 
 (defmacro without-interrupts (&body body)
   #+sbcl
