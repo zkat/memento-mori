@@ -39,7 +39,6 @@
   active-p
   thread
   driver
-  exit-signal
   links
   trap-exits-p)
 
