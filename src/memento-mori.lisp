@@ -7,10 +7,16 @@
    #:current-actor
    #:send
    #:handle-message
-   #:actor-scheduler
+   ;; Links
+   #:link
+   #:unlink
+   ;; Exits
    #:trap-exits-p
    #:enable-trap-exits
    #:disable-trap-exits
+   #:remote-exit-p
+   #:remote-exit-reason
+   #:remote-exit-from
    #:exit
    #:exit-reason
    #:kill
