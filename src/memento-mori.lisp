@@ -338,7 +338,7 @@
                          :trap-exits-p t)))
     (send trapping 'hello)
     (sleep 1)
-    (exit 'regular-exit trapping)
+    (send (spawn (rcurry #'exit trapping) :scheduler scheduler) 'regular-exit)
     (sleep 1)
     (send trapping 'gonnadiesoon)
     (sleep 1)
