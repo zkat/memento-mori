@@ -1,4 +1,4 @@
-* Memento-mori [3/14]
+* Memento-mori [7/21]
 ** DONE First-class threaded schedulers
    Make schedulers into first-class objects that can be used to manage
    scheduler threads and compartmentalize mori usage.
@@ -43,39 +43,74 @@
     handled and are not converted to messages when the actor is trapping
     exits.
 **** DONE exit
-**** DONE kill
+**** TODO kill
      This one's trickier because it involves possibly interrupting a worker
      thread, but only if it's possibly executing an actor, and even then
      only go through with things if the interrupt actually ended up
      happening at the right time. *shudder*
-** TODO Links
-   Links are bidirectional. Only one link can exist between actor
-   pairs. Actors cannot link to themselves. LINK creates a link, UNLINK
-   removes it.
-*** TODO basic functionality
-    Including linking/unlinking/exit signaling
-*** TODO guaranteed exit signaling
-    If an actor is dead or dies, the linking actor MUST receive the
-    appropriate exit signal.
-** TODO trap-exits
-     Look into the semantics of trap exits. In the following situation, the
-     actor will still exit:
+** DONE Rework remote exits
+   Keep a separate signal queue, which the actor always goes through before
+   messages. Insert remote exits into this queue and have the actor itself
+   make the determination about whether to add the signal as a remote exit
+   message, or die. When the actor seems like it might have a thread,
+   interrupt the actor and simply force it to check its signal queue.
+** DONE trap-exits
+   Update 2: This was solved by redoing the way exits work so that they work
+   more like messages.
+
+   Update 1: Yeah, this is probably wrong. EXIT shouldn't be remotely
+   checking the trap-exits status of the target actor. Instead, it should
+   simply set the signal and have the actor take care of it.
+
+   This means that signals need to be put into their own queue... and
+   that we'll have to cons up a queue just for them, which increases the
+   size of actors significantly. :(
+
+   Look into the semantics of trap exits. In the following situation, the
+   actor will still exit:
      | Actor A              | Actor B              |
      | (disable-trap-exits) |                      |
      |                      | (exit 'diaf actor-a) |
      | (enable-trap-exits)  |                      |
      | *kaput*              |                      |
+     |                      |                      |
 
-     Is this acceptable? It would most certainly be in a pre-emptive
-     world. Is it still acceptable in a world where 'diaf will definitely
-     not be processed until Actor A's current execution (the one which
-     called both disable-trap-exits and enable-trap-exits) is completed?
+   Is this acceptable? It would most certainly be in a pre-emptive
+   world. Is it still acceptable in a world where 'diaf will definitely
+   not be processed until Actor A's current execution (the one which
+   called both disable-trap-exits and enable-trap-exits) is completed?
+** DONE Fix remote exits
+   I broke them somehow. They're not working as expected. See remote-exit-test.
+** DONE Fix scheduling
+   Update: This fix reduced the performance of links-test to 1/3 of what it
+   was. :(
+
+   Threads aren't waking up properly.
+** TODO Links
+   Links are bidirectional. Only one link can exist between actor
+   pairs. Actors cannot link to themselves. LINK creates a link, UNLINK
+   removes it.
+*** DONE basic functionality
+    Including linking/unlinking/exit signaling
+*** TODO guaranteed exit signaling
+    If an actor is dead or dies, the linking actor MUST receive the
+    appropriate exit signal.
+** TODO Bring links-test back up to speed
+   Tracking number of idle threads. We were doing 60k+/s on links-test, now
+   we're down to 20k/s. :(
+
+   Note: When I drop the thread count to 2, I get a blazing 110k/s on links-test.
+** TODO Debugging
+   Allow actors to invoke the debugger on error (and find a way to
+   automatically restart threaded-scheduler threads when they get
+   killed...)
 ** TODO Monitors
    Monitors are one-directional. Multiple monitors can exist for the same
    direction in an actor pair. MONITOR returns a monitor object that can be
    used to identify exit signals and remove the monitor with DEMONITOR.
 ** TODO Registration
    Actors may be named by symbols.
+** TODO Timer
 ** TODO Actor designators
    Most things that accept 'actors' can actually accept actor designators,
    which are either pointers to actual actors, or symbols denoting named
@@ -103,3 +138,5 @@
 ** TODO Hook up to conserv
    Can this wrap/be wrapped by something like conserv so all network
    clients are handled as actors?
+** TODO See if signal queue can be left behind
+   It involves extra consing which may be unnecessary.
