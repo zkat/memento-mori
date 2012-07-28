@@ -6,7 +6,8 @@
   :author "Kat Marchán <kzm@sykosomatic.org>"
   :license "MIT"
   :depends-on (#:alexandria
-               #:bordeaux-threads)
+               #:bordeaux-threads
+               #:trivial-timers)
   :components
   ((:module src
             :serial t
