@@ -7,6 +7,8 @@
    #:current-actor
    #:send
    #:handle-message
+   ;; #:ensure-persistent-binding
+   ;; #:remove-persistent-binding
    ;; Links
    #:link
    #:unlink
@@ -53,7 +55,8 @@
   (let ((actor (make-actor :scheduler (or scheduler (actor-scheduler (current-actor)))
                            :driver driver
                            :trap-exits-p trap-exits-p
-                           :bindings initial-bindings)))
+                           :bindings (loop for (binding . value) in initial-bindings
+                                        collect (cons binding value)))))
     (when linkp
       (link actor))
     actor))
@@ -75,6 +78,19 @@
     (funcall driver message))
   (:method ((driver symbol) message)
     (funcall driver message)))
+
+#+nil
+(defun ensure-persistent-binding (symbol)
+  (pushnew (cons symbol (symbol-value symbol))
+           (actor-bindings (current-actor))
+           :test #'equal)
+  (values))
+
+#+nil
+(defun remove-persistent-binding (symbol)
+  (deletef (actor-bindings (current-actor))
+           symbol :key #'car)
+  (values))
 
 ;;;
 ;;; Links
@@ -224,10 +240,9 @@
                                         (exit (e)
                                           (actor-death actor e)))
                                    (setf (actor-bindings actor)
-                                         (mapcar (lambda (binding)
-                                                   (cons (car binding)
-                                                         (symbol-value (car binding))))
-                                                 (actor-bindings actor))))))
+                                         (loop for (binding . nil) in (actor-bindings actor)
+                                            when (boundp binding)
+                                            collect (cons binding (symbol-value binding)))))))
                              (notify-actor-waiter scheduler))
                             (t
                              (unless (compare-and-swap (actor-active-p actor) t nil)
@@ -369,6 +384,10 @@
 
 (defun dynamic-bindings-test (scheduler)
   (let ((actor (spawn (lambda (increment)
+                        ;; (print (boundp (symbol-value '*evenp*)))
+                        ;; (if (evenp (symbol-value '*test*))
+                        ;;     (ensure-persistent-binding '*evenp*)
+                        ;;     (remove-persistent-binding '*evenp*))
                         (when (> 10 (print (incf (symbol-value '*test*) increment)))
                           (send (current-actor) increment)))
                       :initial-bindings '((*test* . 1))
