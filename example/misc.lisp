@@ -91,6 +91,14 @@
      n)
     scheduler))
 
+(defun monitor-test (scheduler)
+  (let ((observer (spawn (lambda (msg)
+                           (if (monitor-exit-p msg)
+                               (print msg)
+                               (exit msg (spawn #'print :monitorp t))))
+                         :scheduler scheduler)))
+    (send observer 'bye)))
+
 (defun dynamic-bindings-test (scheduler)
   (let ((actor (spawn (lambda (increment)
                         ;; (print (boundp (symbol-value '*evenp*)))

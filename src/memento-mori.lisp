@@ -10,9 +10,22 @@
    #:actor-alive-p
    ;; #:ensure-persistent-binding
    ;; #:remove-persistent-binding
+
+   ;; Monitors
+   #:monitor
+   #:demonitor
+   #:monitorp
+   #:monitor-exit
+   #:monitor-exit-p
+   #:monitor-exit-monitor
+   #:monitor-exit-from
+   #:monitor-exit-reason
+   #:actor-down
+
    ;; Links
    #:link
    #:unlink
+
    ;; Exits
    #:trap-exits-p
    #:enable-trap-exits
@@ -24,6 +37,7 @@
    #:exit-reason
    #:kill
    #:killed
+
    ;; Schedulers
    #:make-threaded-scheduler
    #:stop-threaded-scheduler))
@@ -43,6 +57,8 @@
   thread
   driver
   links
+  monitors
+  (monitor-lock (bt:make-lock))
   trap-exits-p
   bindings
   debug-p)
@@ -58,6 +74,7 @@
                        scheduler
                        trap-exits-p
                        linkp
+                       monitorp
                        initial-bindings
                        (debugp (%current-actor-debug-p)))
   (when (and (null scheduler)
@@ -69,9 +86,10 @@
                            :bindings (loop for (binding . value) in initial-bindings
                                         collect (cons binding value))
                            :debug-p debugp)))
-    (when linkp
-      (link actor))
-    actor))
+    (when linkp (link actor))
+    (if monitorp
+        (values actor (monitor actor))
+        actor)))
 
 (defvar *current-actor* nil)
 (defun current-actor ()
@@ -133,6 +151,57 @@
                  (exit exit linked)
                  (deletef (actor-links linked) actor :test #'eq))
            links))))
+
+;;;
+;;; Monitors
+;;;
+(defmacro with-monitor-lock ((actor) &body body)
+  `(bt:with-lock-held ((actor-monitor-lock ,actor))
+     ,@body))
+
+(defstruct (monitor (:predicate monitorp))
+  (observer nil :read-only t)
+  (monitored-actor nil :read-only t))
+
+(defmethod print-object ((monitor monitor) stream)
+  (print-unreadable-object (monitor stream :type t :identity t)
+    (format stream "Actor: ~a" (monitor-monitored-actor monitor))))
+
+(defun monitor (actor &aux (observer (current-actor)))
+  (let ((monitor (make-monitor :observer observer :monitored-actor actor)))
+    (with-monitor-lock (actor)
+      (if (actor-alive-p actor)
+          (push monitor (actor-monitors actor))
+          (send observer (make-monitor-exit
+                          :monitor monitor
+                          :from actor
+                          :reason 'actor-down))))
+    monitor))
+
+(defun demonitor (monitor)
+  (let ((actor (monitor-monitored-actor monitor)))
+    (with-monitor-lock (actor)
+      (removef (actor-monitors actor) monitor)))
+  (values))
+
+(defstruct monitor-exit
+  (monitor nil :read-only t)
+  (from nil :read-only t)
+  (reason nil :read-only t))
+(defmethod print-object ((monitor-exit monitor-exit) stream)
+  (print-unreadable-object (monitor-exit stream :type t)
+    (format stream "~S"
+            (monitor-exit-reason monitor-exit))))
+
+(defun notify-monitors (actor exit)
+  (with-monitor-lock (actor)
+    (map nil (lambda (monitor)
+               (send (monitor-observer monitor)
+                     (make-monitor-exit :monitor monitor
+                                        :from actor
+                                        :reason (exit-reason exit))))
+         (actor-monitors actor))
+    (setf (actor-monitors actor) nil)))
 
 ;;;
 ;;; Exits
@@ -309,4 +378,5 @@
 (defun actor-death (actor exit)
   (setf (actor-alive-p actor) nil
         (actor-active-p actor) nil)
-  (notify-links actor exit))
+  (notify-links actor exit)
+  (notify-monitors actor exit))
