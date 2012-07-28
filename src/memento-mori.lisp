@@ -40,18 +40,20 @@
   thread
   driver
   links
-  trap-exits-p)
+  trap-exits-p
+  bindings)
 
 (defmethod print-object ((actor actor) stream)
   (print-unreadable-object (actor stream :type t :identity t)))
 
-(defun spawn (driver &key scheduler trap-exits-p linkp)
+(defun spawn (driver &key scheduler trap-exits-p linkp initial-bindings)
   (when (and (null scheduler)
              (null (current-actor)))
     (error "A scheduler is required when SPAWN is called outside the context of an actor."))
   (let ((actor (make-actor :scheduler (or scheduler (actor-scheduler (current-actor)))
                            :driver driver
-                           :trap-exits-p trap-exits-p)))
+                           :trap-exits-p trap-exits-p
+                           :bindings initial-bindings)))
     (when linkp
       (link actor))
     actor))
@@ -208,14 +210,23 @@
                         (dequeue (actor-queue actor))
                       (cond (got-val-p
                              (let ((*current-actor* actor))
-                               (handler-case
-                                   (with-interrupts
-                                     (handle-message (actor-driver actor) val)
-                                     (enqueue actor queue))
-                                 (error (e)
-                                   (actor-death actor (make-condition 'exit :reason e)))
-                                 (exit (e)
-                                   (actor-death actor e))))
+                               (progv
+                                   (mapcar #'car (actor-bindings actor))
+                                   (mapcar #'cdr (actor-bindings actor))
+                                 (unwind-protect
+                                      (handler-case
+                                          (with-interrupts
+                                            (handle-message (actor-driver actor) val)
+                                            (enqueue actor queue))
+                                        (error (e)
+                                          (actor-death actor (make-condition 'exit :reason e)))
+                                        (exit (e)
+                                          (actor-death actor e)))
+                                   (setf (actor-bindings actor)
+                                         (mapcar (lambda (binding)
+                                                   (cons (car binding)
+                                                         (symbol-value (car binding))))
+                                                 (actor-bindings actor))))))
                              (notify-actor-waiter scheduler))
                             (t
                              (unless (compare-and-swap (actor-active-p actor) t nil)
@@ -354,3 +365,11 @@
             :scheduler scheduler)
      n)
     scheduler))
+
+(defun dynamic-bindings-test (scheduler)
+  (let ((actor (spawn (lambda (increment)
+                        (when (> 10 (print (incf (symbol-value '*test*) increment)))
+                          (send (current-actor) increment)))
+                      :initial-bindings '((*test* . 1))
+                      :scheduler scheduler)))
+    (send actor 1)))
