@@ -66,7 +66,9 @@
   debug-p)
 
 (defmethod print-object ((actor actor) stream)
-  (print-unreadable-object (actor stream :type t :identity t)))
+  (print-unreadable-object (actor stream :type t :identity t)
+    (maybe-format-actor-name actor stream)
+    (format stream "[~a msgs]" (queue-count (actor-queue actor)))))
 
 (defun %current-actor-debug-p ()
   (when-let (actor (current-actor))
@@ -315,9 +317,9 @@ under that name. If false, returns nil."
   (reason nil :read-only t))
 (defmethod print-object ((remote-exit remote-exit) stream)
   (print-unreadable-object (remote-exit stream :type t)
-    (format stream "~S [from ~A]"
-            (remote-exit-reason remote-exit)
-            (remote-exit-from remote-exit))))
+    (format stream "~@[[from ~A] ~]~S"
+            (remote-exit-from remote-exit)
+            (remote-exit-reason remote-exit))))
 
 (defvar +kill-signal+ (gensym "KILL-SIGNAL-"))
 
