@@ -1,9 +1,12 @@
 (cl:defpackage #:memento-mori.utils
-  (:use :cl)
+  (:use #:cl #:alexandria)
   (:export
    #:compare-and-swap
+   #:atomic-setf
    #:atomic-incf
    #:atomic-decf
+   #:atomic-push
+   #:atomic-pop
    #:without-interrupts
    #:with-interrupts
    #:make-light-queue
@@ -24,13 +27,37 @@
   `(excl:atomic-conditional-setf ,place ,new-value ,old-value)
   #-(or allegro lispworks ccl sbcl) `(error "Not supported."))
 
+(defmacro atomic-setf (place new-value-function)
+  (with-gensyms (func old-value new-value)
+    `(loop :with ,func = ,new-value-function
+        :for ,old-value = ,place
+        :for ,new-value = (funcall ,func ,old-value)
+        :until (compare-and-swap ,place ,old-value ,new-value)
+        :finally (return ,new-value))))
+
 (defmacro atomic-incf (place &optional (increment 1))
-  `(loop for num = ,place for new-val = (+ (the fixnum num) (the fixnum ,increment))
-      until (compare-and-swap ,place (the fixnum num) new-val)
-      finally (return new-val)))
+  (with-gensyms (old-value inc)
+    `(atomic-setf ,place (let ((,inc ,increment))
+                           (lambda (,old-value)
+                             (+ ,old-value ,inc))))))
 
 (defmacro atomic-decf (place &optional (decrement 1))
-  `(atomic-incf ,place (- (the fixnum ,decrement))))
+  `(atomic-incf ,place (- ,decrement)))
+
+(defmacro atomic-push (value place)
+  (with-gensyms (old-value val)
+    `(let ((,val ,value))
+       (atomic-setf ,place
+                    (lambda (,old-value)
+                      (cons ,val ,old-value))))))
+
+(defmacro atomic-pop (place)
+  (with-gensyms (old-value car)
+    `(let (,car)
+       (atomic-setf ,place (lambda (,old-value)
+                             (setf ,car ,old-value)
+                             (cdr ,old-value)))
+       ,car)))
 
 (defmacro without-interrupts (&body body)
   #+sbcl
