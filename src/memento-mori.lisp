@@ -61,6 +61,8 @@
   (monitor-lock (bt:make-lock))
   trap-exits-p
   bindings
+  name
+  named-p
   debug-p)
 
 (defmethod print-object ((actor actor) stream)
@@ -76,6 +78,7 @@
                        linkp
                        monitorp
                        initial-bindings
+                       (name nil namep)
                        (debugp (%current-actor-debug-p)))
   (when (and (null scheduler)
              (null (current-actor)))
@@ -86,6 +89,7 @@
                            :bindings (loop for (binding . value) in initial-bindings
                                         collect (cons binding value))
                            :debug-p debugp)))
+    (when namep (register name actor))
     (when linkp (link actor))
     (if monitorp
         (values actor (monitor actor))
@@ -95,7 +99,7 @@
 (defun current-actor ()
   *current-actor*)
 
-(defun send (actor message)
+(defun send (actor message &aux (actor (ensure-actor actor)))
   (when (actor-alive-p actor)
     (enqueue message (actor-queue actor))
     (on-new-actor-message (actor-scheduler actor) actor))
@@ -123,13 +127,97 @@
   (values))
 
 ;;;
+;;; Registration
+;;;
+(defvar *registered-actors* (make-hash-table :test #'eq))
+(defvar *registration-lock* (bt:make-lock))
+
+(define-condition no-such-actor (error)
+  ((name :initarg :name :reader no-such-actor-name))
+  (:report (lambda (e stream)
+             (format stream "~S is not the name of a registered actor."
+                     (no-such-actor-name e)))))
+
+(define-condition actor-already-exists (error)
+  ((name :initarg :name :reader actor-already-exists-name)
+   (existing-actor :initarg :existing :reader actor-already-exists-existing-actor))
+  (:report (lambda (e stream)
+             (format stream "~S is already registered as ~s."
+                     (actor-already-exists-existing-actor e)
+                     (actor-already-exists-name e)))))
+
+(defun list-registered-names ()
+  "Returns a list of all registered actor names."
+  (bt:with-recursive-lock-held (*registration-lock*)
+    (hash-table-keys *registered-actors*)))
+
+(defun find-actor (name &optional (errorp t))
+  "Returns an `actor` named by `name`. If `errorp` is true, signals a
+condition of type `no-such-actor` when an actor is not found under that
+name. If `errorp` is false, returns nil when no actor is found."
+  (check-type name symbol "a valid actor name")
+  (bt:with-recursive-lock-held (*registration-lock*)
+    (multiple-value-bind (actor foundp)
+        (gethash name *registered-actors*)
+      (cond (foundp actor)
+            (errorp (error 'no-such-actor :name name))
+            (t nil)))))
+
+(defun register (name actor &optional (errorp t))
+  "Registers `actor` under `name`. If `errorp` is true, signals a condition of
+type `actor-already-exists` if there is already an actor registered under
+that name. Otherwise, if `errorp` is false, the existing registration is
+replaced."
+  (check-type name symbol "a valid actor name")
+  (check-type actor actor "an actor object")
+  (bt:with-recursive-lock-held (*registration-lock*)
+    (when errorp
+      (when-let ((old-actor (find-actor name nil)))
+        (restart-case
+            (error 'actor-already-exists
+                   :name name
+                   :existing old-actor)
+          (replace ()
+            :report "Replace the registration. Existing actor will continue to run."
+            nil)
+          (shutdown-and-replace ()
+            :report "Replace the registration. Existing actor will be sent a shutdown request."
+            (exit 'shutdown old-actor))
+          (kill-and-replace ()
+            :report "Replace the registration. Existing actor will be killed."
+            (kill old-actor)))))
+    (setf (actor-name actor) name
+          (actor-named-p actor) t
+          (gethash name *registered-actors*) actor)))
+
+(defun ensure-actor (actor)
+  (etypecase actor
+    (actor actor)
+    (symbol (find-actor actor))))
+
+(defun unregister (name &optional (errorp t))
+  "Removes the actor registration associated with `name`. If `errorp` is true,
+signals a condition of type `no-such-actor` if there is no actor registered
+under that name. If false, returns nil."
+  (check-type name symbol "a valid actor name")
+  (bt:with-recursive-lock-held (*registration-lock*)
+    (when (and (null (remhash name *registered-actors*))
+               errorp)
+      (error 'no-such-actor :name name))))
+
+(defun maybe-format-actor-name (actor stream)
+  (bt:with-recursive-lock-held (*registration-lock*)
+    (when (actor-named-p actor)
+      (format stream "~s " (actor-name actor)))))
+
+;;;
 ;;; Links
 ;;;
 
 ;; NOTE - yes, this is a cop-out. :(
 (defvar *link-lock* (bt:make-lock))
 
-(defun link (actor &aux (self (current-actor)))
+(defun link (actor &aux (self (current-actor)) (actor (ensure-actor actor)))
   (bt:with-lock-held (*link-lock*)
     (cond ((actor-alive-p actor)
            (pushnew actor (actor-links self) :test 'eq)
@@ -138,7 +226,7 @@
            (exit 'actor-dead self))))
   (values))
 
-(defun unlink (actor &aux (self (current-actor)))
+(defun unlink (actor &aux (self (current-actor)) (actor (ensure-actor actor)))
   (bt:with-lock-held (*link-lock*)
     (removef (actor-links actor) self :test 'eq)
     (removef (actor-links self) actor :test 'eq))
@@ -167,7 +255,7 @@
   (print-unreadable-object (monitor stream :type t :identity t)
     (format stream "Actor: ~a" (monitor-monitored-actor monitor))))
 
-(defun monitor (actor &aux (observer (current-actor)))
+(defun monitor (actor &aux (observer (current-actor)) (actor (ensure-actor actor)))
   (let ((monitor (make-monitor :observer observer :monitored-actor actor)))
     (with-monitor-lock (actor)
       (if (actor-alive-p actor)
@@ -233,9 +321,10 @@
 
 (defvar +kill-signal+ (gensym "KILL-SIGNAL-"))
 
-(defun exit (reason &optional (actor (current-actor)))
-  (assert (or (null actor) (actor-p actor)))
-  (cond ((eq actor (current-actor))
+(defun exit (reason
+             &optional (actor nil actorp)
+             &aux (actor (when actorp (ensure-actor actor))))
+  (cond ((not actorp)
          (signal (if (eq reason +kill-signal+)
                      (make-condition '%killed)
                      (make-condition 'exit :reason reason))))
@@ -252,7 +341,6 @@
   (values))
 
 (defun kill (actor)
-  (assert (actor-p actor))
   (exit +kill-signal+ actor))
 
 ;;;
