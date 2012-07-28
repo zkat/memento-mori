@@ -167,7 +167,7 @@
   (active-actors (make-queue))
   (activity-lock (bt:make-lock))
   (activity-condvar (bt:make-condition-variable))
-  idle-thread-p
+  (idle-thread-count 0)
   threads)
 
 (defmethod print-object ((scheduler threaded-scheduler) stream)
@@ -246,17 +246,18 @@
 (declaim (inline wait-for-actors))
 (defun wait-for-actors (scheduler)
   (bt:with-lock-held ((threaded-scheduler-activity-lock scheduler))
-    (setf (threaded-scheduler-idle-thread-p scheduler) t)
+    (atomic-incf (threaded-scheduler-idle-thread-count scheduler))
     (bt:condition-wait (threaded-scheduler-activity-condvar scheduler)
-                       (threaded-scheduler-activity-lock scheduler))))
+                       (threaded-scheduler-activity-lock scheduler))
+    (atomic-decf (threaded-scheduler-idle-thread-count scheduler))))
 
 (declaim (inline notify-actor-waiter))
 (defun notify-actor-waiter (scheduler)
-  (when (compare-and-swap (threaded-scheduler-idle-thread-p scheduler)
-                          t nil)
+  (when (plusp (threaded-scheduler-idle-thread-count scheduler))
     (bt:with-lock-held ((threaded-scheduler-activity-lock scheduler))
       (bt:condition-notify (threaded-scheduler-activity-condvar scheduler)))))
 
+(declaim (inline actor-death))
 (defun actor-death (actor exit)
   (setf (actor-alive-p actor) nil
         (actor-active-p actor) nil)
@@ -303,9 +304,8 @@
                           (print "Completed!"))
                         :scheduler scheduler))
          (bad-guy (spawn (lambda (msg)
-                           (print "sending message")
-                           (print msg)
-                           #+nil(exit msg victim)
+                           (print "I got scheduled, too!")
+                           (exit msg victim)
                            (print "message sent"))
                          :scheduler scheduler)))
     (send victim 'hi)
