@@ -135,7 +135,7 @@
            (pushnew actor (actor-links self) :test 'eq)
            (pushnew self (actor-links actor) :test 'eq))
           (t
-           (exit 'actor-dead))))
+           (exit 'actor-dead self))))
   (values))
 
 (defun unlink (actor &aux (self (current-actor)))
