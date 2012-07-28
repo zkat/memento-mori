@@ -1,4 +1,4 @@
-* Memento-mori [11/24]
+* Memento-mori [13/23]
 ** DONE First-class threaded schedulers
    Make schedulers into first-class objects that can be used to manage
    scheduler threads and compartmentalize mori usage.
@@ -117,15 +117,18 @@
     CLOSED: [2012-07-28 Sat 14:38]
     If an actor is dead or dies, the linking actor MUST receive the
     appropriate exit signal.
-** TODO Registration
-   Actors may be named by symbols.
-** TODO Timer
+** DONE Timer
+   CLOSED: [2012-07-28 Sat 17:14]
    ...How in the world do I do this without using a priority queue?!
    This could be implemented by having a 'system' process
-** TODO Actor designators
+** DONE Actor designators
+   CLOSED: [2012-07-28 Sat 18:03]
    Most things that accept 'actors' can actually accept actor designators,
    which are either pointers to actual actors, or symbols denoting named
    actors.  (send 'important-server "hi there")
+** TODO Supervisors
+   Implement a supervisor API
+
 ** TODO Higher-level actors
 *** TODO mori-srv
     Provides a wrapper around regular message sending, an init/shutdown
@@ -139,18 +142,19 @@
     API for easily defining and handling fsm-based actors.
 *** TODO mori-cc
     API for easily defining and handling continuation-based actors.
-** TODO Supervisors
-   Implement a supervisor API
-
+** TODO all-actors
+   It doesn't need to be safe, but it may be a nice utility to have while
+   debugging. Don't care enough to add it yet, though, since actors get
+   GCed if all references are gone anyway.
 ** TODO Test monitor/link corner cases
-** TODO single-threaded scheduler
-   For lisps that don't support threads, or for people who don't want to
-   use them.
 ** TODO pinned actor scheduler
    A scheduler that spawns a dedicated thread for every actor added to
    it. These are important when actors must, for example, access FFI
    without blocking other actors.
 
+** TODO single-threaded scheduler
+   For lisps that don't support threads, or for people who don't want to
+   use them.
 ** TODO Hook up to conserv
    Can this wrap/be wrapped by something like conserv so all network
    clients are handled as actors?
@@ -170,5 +174,3 @@
 
    This is probably going to involve replacing the scheduler stuff with
    something more acceptable.
-** TODO See if signal queue can be left behind
-   It involves extra consing which may be unnecessary.
