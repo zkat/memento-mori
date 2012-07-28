@@ -36,20 +36,19 @@
         :finally (return ,new-value))))
 
 (defmacro atomic-incf (place &optional (increment 1))
-  (with-gensyms (old-value inc)
-    `(atomic-setf ,place (let ((,inc ,increment))
-                           (lambda (,old-value)
-                             (+ ,old-value ,inc))))))
+  (with-gensyms (old-value)
+    (once-only (increment)
+      `(atomic-setf ,place (lambda (,old-value) (+ ,old-value ,increment))))))
 
 (defmacro atomic-decf (place &optional (decrement 1))
   `(atomic-incf ,place (- ,decrement)))
 
 (defmacro atomic-push (value place)
-  (with-gensyms (old-value val)
-    `(let ((,val ,value))
-       (atomic-setf ,place
+  (with-gensyms (old-value)
+    (once-only (value)
+      `(atomic-setf ,place
                     (lambda (,old-value)
-                      (cons ,val ,old-value))))))
+                      (cons ,value ,old-value))))))
 
 (defmacro atomic-pop (place)
   (with-gensyms (old-value car)
