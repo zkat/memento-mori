@@ -1,4 +1,4 @@
-* Memento-mori [9/23]
+* Memento-mori [11/24]
 ** DONE First-class threaded schedulers
    Make schedulers into first-class objects that can be used to manage
    scheduler threads and compartmentalize mori usage.
@@ -94,21 +94,31 @@
    Allow actors to invoke the debugger on error (and find a way to
    automatically restart threaded-scheduler threads when they get
    killed...)
-** TODO Monitors
+** DONE Monitors
+   CLOSED: [2012-07-28 Sat 14:38]
    Monitors are one-directional. Multiple monitors can exist for the same
    direction in an actor pair. MONITOR returns a monitor object that can be
    used to identify exit signals and remove the monitor with DEMONITOR.
-** TODO Registration
-   Actors may be named by symbols.
-** TODO Links
+*** DONE Basic functionality
+    CLOSED: [2012-07-28 Sat 14:38]
+    Don't worry too much about corner cases.
+*** DONE Actor liveliness corner cases
+    CLOSED: [2012-07-28 Sat 14:38]
+    Go through and make sure there's no awkward cases where monitors will
+    fail to signal.
+** DONE Links
+   CLOSED: [2012-07-28 Sat 14:38]
    Links are bidirectional. Only one link can exist between actor
    pairs. Actors cannot link to themselves. LINK creates a link, UNLINK
    removes it.
 *** DONE basic functionality
     Including linking/unlinking/exit signaling
-*** TODO guaranteed exit signaling
+*** DONE guaranteed exit signaling
+    CLOSED: [2012-07-28 Sat 14:38]
     If an actor is dead or dies, the linking actor MUST receive the
     appropriate exit signal.
+** TODO Registration
+   Actors may be named by symbols.
 ** TODO Timer
    ...How in the world do I do this without using a priority queue?!
    This could be implemented by having a 'system' process
@@ -132,6 +142,7 @@
 ** TODO Supervisors
    Implement a supervisor API
 
+** TODO Test monitor/link corner cases
 ** TODO single-threaded scheduler
    For lisps that don't support threads, or for people who don't want to
    use them.
