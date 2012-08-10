@@ -30,6 +30,7 @@
    #:trap-exits-p
    #:enable-trap-exits
    #:disable-trap-exits
+   #:remote-exit
    #:remote-exit-p
    #:remote-exit-reason
    #:remote-exit-from
