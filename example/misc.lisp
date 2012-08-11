@@ -99,18 +99,6 @@
                          :scheduler scheduler)))
     (send observer 'bye)))
 
-(defun dynamic-bindings-test (scheduler)
-  (let ((actor (spawn (lambda (increment)
-                        ;; (print (boundp (symbol-value '*evenp*)))
-                        ;; (if (evenp (symbol-value '*test*))
-                        ;;     (ensure-persistent-binding '*evenp*)
-                        ;;     (remove-persistent-binding '*evenp*))
-                        (when (> 10 (print (incf (symbol-value '*test*) increment)))
-                          (send (current-actor) increment)))
-                      :initial-bindings '((*test* . 1))
-                      :scheduler scheduler)))
-    (send actor 1)))
-
 (defun debugger-test (scheduler)
   (let ((actor (spawn (lambda (msg)
                         (send (spawn (curry #'error "Dying from ~a."))
