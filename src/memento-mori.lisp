@@ -10,8 +10,6 @@
    #:on-message
    #:on-shutdown
    #:actor-alive-p
-   ;; #:ensure-persistent-binding
-   ;; #:remove-persistent-binding
 
    ;; Monitors
    #:monitor
@@ -63,7 +61,6 @@
   monitors
   (monitor-lock (bt:make-lock))
   trap-exits-p
-  bindings
   name
   named-p
   debug-p)
@@ -84,7 +81,6 @@
                        trap-exits-p
                        linkp
                        monitorp
-                       initial-bindings
                        (name nil namep)
                        (debugp (%current-actor-debug-p)))
   (when (and (null scheduler)
@@ -93,8 +89,6 @@
   (let ((actor (make-actor :scheduler (or scheduler (actor-scheduler (current-actor)))
                            :driver driver
                            :trap-exits-p trap-exits-p
-                           :bindings (loop for (binding . value) in initial-bindings
-                                        collect (cons binding value))
                            :debug-p debugp)))
     (when namep (register name actor))
     (when linkp (link actor))
@@ -114,19 +108,6 @@
   message)
 
 (defgeneric on-new-actor-message (scheduler actor))
-
-#+nil
-(defun ensure-persistent-binding (symbol)
-  (pushnew (cons symbol (symbol-value symbol))
-           (actor-bindings (current-actor))
-           :test #'equal)
-  (values))
-
-#+nil
-(defun remove-persistent-binding (symbol)
-  (deletef (actor-bindings (current-actor))
-           symbol :key #'car)
-  (values))
 
 ;;;
 ;;; Registration
@@ -414,35 +395,27 @@ under that name. If false, returns nil."
                         (dequeue (actor-queue actor))
                       (cond (got-val-p
                              (let ((*current-actor* actor))
-                               (progv
-                                   (mapcar #'car (actor-bindings actor))
-                                   (mapcar #'cdr (actor-bindings actor))
-                                 (unwind-protect
-                                      (handler-bind
-                                          ((error (lambda (e)
-                                                    (when (actor-debug-p actor)
-                                                      (bt:with-recursive-lock-held (*debugger-lock*)
-                                                        (invoke-debugger e)))
-                                                    (actor-death
-                                                     actor
-                                                     (make-condition 'exit :reason e))
-                                                    (throw +unhandled-exit+ nil)))
-                                           (exit (lambda (e)
-                                                   (actor-death actor e)
-                                                   (throw +unhandled-exit+ nil))))
-                                        (restart-case
-                                            (with-interrupts
-                                              (if (eq val +init-message+)
-                                                  (on-init (actor-driver actor))
-                                                  (on-message (actor-driver actor) val))
-                                              (enqueue actor queue))
-                                          (abort ()
-                                            :report "Kill the current actor."
-                                            (kill actor))))
-                                   (setf (actor-bindings actor)
-                                         (loop for (binding . nil) in (actor-bindings actor)
-                                            when (boundp binding)
-                                            collect (cons binding (symbol-value binding)))))))
+                               (handler-bind
+                                   ((error (lambda (e)
+                                             (when (actor-debug-p actor)
+                                               (bt:with-recursive-lock-held (*debugger-lock*)
+                                                 (invoke-debugger e)))
+                                             (actor-death
+                                              actor
+                                              (make-condition 'exit :reason e))
+                                             (throw +unhandled-exit+ nil)))
+                                    (exit (lambda (e)
+                                            (actor-death actor e)
+                                            (throw +unhandled-exit+ nil))))
+                                 (restart-case
+                                     (with-interrupts
+                                       (if (eq val +init-message+)
+                                           (on-init (actor-driver actor))
+                                           (on-message (actor-driver actor) val))
+                                       (enqueue actor queue))
+                                   (abort ()
+                                     :report "Kill the current actor."
+                                     (kill actor)))))
                              (notify-actor-waiter scheduler))
                             (t
                              (unless (compare-and-swap (actor-active-p actor) t nil)
