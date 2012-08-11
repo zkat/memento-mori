@@ -6,7 +6,9 @@
    #:spawn
    #:current-actor
    #:send
-   #:handle-message
+   #:on-init
+   #:on-message
+   #:on-shutdown
    #:actor-alive-p
    ;; #:ensure-persistent-binding
    ;; #:remove-persistent-binding
@@ -75,6 +77,8 @@
   (when-let (actor (current-actor))
     (actor-debug-p actor)))
 
+(defvar +init-message+ (gensym "SERVER-INIT-"))
+
 (defun spawn (driver &key
                        scheduler
                        trap-exits-p
@@ -94,6 +98,7 @@
                            :debug-p debugp)))
     (when namep (register name actor))
     (when linkp (link actor))
+    (send actor +init-message+)
     (if monitorp
         (values actor (monitor actor))
         actor)))
@@ -109,12 +114,6 @@
   message)
 
 (defgeneric on-new-actor-message (scheduler actor))
-
-(defgeneric handle-message (driver message)
-  (:method ((driver function) message)
-    (funcall driver message))
-  (:method ((driver symbol) message)
-    (funcall driver message)))
 
 #+nil
 (defun ensure-persistent-binding (symbol)
@@ -386,6 +385,21 @@ under that name. If false, returns nil."
 (defvar +unhandled-exit+ (gensym "UNHANDLED-EXIT-"))
 (defvar *debugger-lock* (bt:make-lock))
 
+(defgeneric on-init (driver)
+  (:method ((driver t)) t))
+
+(defgeneric on-message (driver message)
+  (:method ((driver t) (message t))
+    (error "No ON-MESSAGE method defined for ~s with message ~s."
+           driver message))
+  (:method ((driver function) message)
+    (funcall driver message))
+  (:method ((driver symbol) message)
+    (funcall driver message)))
+
+(defgeneric on-shutdown (driver reason)
+  (:method ((driver t) (reason t)) t))
+
 (defmethod event-step ((scheduler threaded-scheduler))
   (let ((queue (threaded-scheduler-active-actors scheduler)))
     (without-interrupts
@@ -418,7 +432,9 @@ under that name. If false, returns nil."
                                                    (throw +unhandled-exit+ nil))))
                                         (restart-case
                                             (with-interrupts
-                                              (handle-message (actor-driver actor) val)
+                                              (if (eq val +init-message+)
+                                                  (on-init (actor-driver actor))
+                                                  (on-message (actor-driver actor) val))
                                               (enqueue actor queue))
                                           (abort ()
                                             :report "Kill the current actor."
@@ -467,6 +483,7 @@ under that name. If false, returns nil."
       (bt:condition-notify (threaded-scheduler-activity-condvar scheduler)))))
 
 (defun actor-death (actor exit)
+  (ignore-some-conditions (error exit) (on-shutdown (actor-driver actor) exit))
   (setf (actor-alive-p actor) nil
         (actor-active-p actor) nil)
   (notify-links actor exit)
