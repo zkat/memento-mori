@@ -10,6 +10,8 @@
    #:on-message
    #:on-shutdown
    #:actor-alive-p
+   #:selective-receive
+   #:receive-cond
 
    ;; Monitors
    #:monitor
@@ -53,6 +55,9 @@
   scheduler
   (signals (make-queue))
   (queue (make-queue))
+  (save-queue (make-queue))
+  (message-handler 'init-handler)
+  save-queue-checked-p
   (alive-p t)
   active-p
   thread
@@ -96,6 +101,32 @@
     (if monitorp
         (values actor (monitor actor))
         actor)))
+
+(defun init-handler (msg)
+  (when (eq msg +init-message+)
+    (lambda (msg)
+      (declare (ignore msg))
+      (on-init (actor-driver (current-actor))))))
+
+(defun msg-handler (msg)
+  (declare (ignore msg))
+  (lambda (msg)
+    (on-message (actor-driver (current-actor)) msg)))
+
+(defvar +new-handler+ (gensym "NEW-HANDLER-"))
+
+(defmacro receive-cond ((value-var) &body clauses)
+  `(selective-receive
+    (lambda (,value-var)
+      (cond
+        ,@(loop for (test . forms) in clauses
+             collect `(,test (lambda (,value-var)
+                               (declare (ignorable ,value-var))
+                               ,@forms)))))))
+
+(defun selective-receive (test &aux (actor (current-actor)))
+  (assert (not (null actor)))
+  (throw +new-handler+ test))
 
 (defvar *current-actor* nil)
 (defun current-actor ()
@@ -391,9 +422,10 @@ under that name. If false, returns nil."
                   (catch +unhandled-exit+
                     (let ((*current-actor* actor))
                       (process-signals actor))
-                    (multiple-value-bind (val got-val-p)
-                        (dequeue (actor-queue actor))
-                      (cond (got-val-p
+                    (multiple-value-bind (val handler)
+                        (get-message actor)
+                      (cond (handler
+                             (setf (actor-save-queue-checked-p actor) nil)
                              (let ((*current-actor* actor))
                                (handler-bind
                                    ((error (lambda (e)
@@ -408,16 +440,20 @@ under that name. If false, returns nil."
                                             (actor-death actor e)
                                             (throw +unhandled-exit+ nil))))
                                  (restart-case
-                                     (with-interrupts
-                                       (if (eq val +init-message+)
-                                           (on-init (actor-driver actor))
-                                           (on-message (actor-driver actor) val))
-                                       (enqueue actor queue))
+                                     (setf (actor-message-handler actor)
+                                           (or (with-interrupts
+                                                 (prog1
+                                                     (catch +new-handler+
+                                                       (funcall handler val)
+                                                       nil)
+                                                   (enqueue actor queue)))
+                                               'msg-handler))
                                    (abort ()
                                      :report "Kill the current actor."
                                      (kill actor)))))
                              (notify-actor-waiter scheduler))
                             (t
+                             (setf (actor-save-queue-checked-p actor) t)
                              (unless (compare-and-swap (actor-active-p actor) t nil)
                                (enqueue actor queue))))))
                   (setf (actor-thread actor) nil)
@@ -425,6 +461,27 @@ under that name. If false, returns nil."
                  (t
                   (wait-for-actors scheduler)
                   (go :keep-going))))))))
+
+(defun get-message (actor &aux (*current-actor* actor))
+  (multiple-value-bind (msg handler)
+      (unless (actor-save-queue-checked-p actor)
+        (get-message-from-queue actor (actor-save-queue actor)))
+    (if handler
+        (values msg handler)
+        (get-message-from-queue actor (actor-queue actor)))))
+
+(defun get-message-from-queue (actor from-queue)
+  (loop
+     with result
+     for (val got-val-p) = (multiple-value-list (dequeue from-queue))
+     for handler = (when got-val-p (funcall (actor-message-handler actor) val))
+     while got-val-p
+     if (and handler (null result)) do (setf result (list val handler))
+     else collect val into invalids
+     finally
+       (progn
+         (map nil (rcurry #'enqueue (actor-save-queue actor)) invalids)
+         (return-from get-message-from-queue (values-list result)))))
 
 (defun process-signals (actor)
   (loop for signal = (dequeue (actor-signals actor))
