@@ -515,8 +515,8 @@ under that name. If false, returns nil."
     (bt:with-lock-held ((threaded-scheduler-activity-lock scheduler))
       (bt:condition-notify (threaded-scheduler-activity-condvar scheduler)))))
 
-(defun actor-death (actor exit)
-  (ignore-some-conditions (error exit) (on-shutdown (actor-driver actor) exit))
+(defun actor-death (actor exit &aux (*current-actor* actor))
+  (ignore-some-conditions (error exit) (on-shutdown (actor-driver actor) (exit-reason exit)))
   (setf (actor-alive-p actor) nil
         (actor-active-p actor) nil)
   (notify-links actor exit)
