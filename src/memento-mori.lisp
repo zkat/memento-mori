@@ -421,48 +421,51 @@ under that name. If false, returns nil."
                   (setf (actor-thread actor) (bt:current-thread))
                   (catch +unhandled-exit+
                     (let ((*current-actor* actor))
-                      (process-signals actor))
-                    (multiple-value-bind (val handler)
-                        (get-message actor)
-                      (cond (handler
-                             (setf (actor-save-queue-checked-p actor) nil)
-                             (let ((*current-actor* actor))
-                               (handler-bind
-                                   ((error (lambda (e)
-                                             (when (actor-debug-p actor)
-                                               (bt:with-recursive-lock-held (*debugger-lock*)
-                                                 (invoke-debugger e)))
-                                             (actor-death
-                                              actor
-                                              (make-condition 'exit :reason e))
-                                             (throw +unhandled-exit+ nil)))
-                                    (exit (lambda (e)
-                                            (actor-death actor e)
-                                            (throw +unhandled-exit+ nil))))
-                                 (restart-case
+                      (process-signals actor)
+                      (handler-bind
+                          ((error (lambda (e)
+                                    (when (actor-debug-p actor)
+                                      (bt:with-recursive-lock-held (*debugger-lock*)
+                                        (invoke-debugger e)))
+                                    (actor-death
+                                     actor
+                                     (make-condition 'exit :reason e))
+                                    (throw +unhandled-exit+ nil)))
+                           (exit (lambda (e)
+                                   (actor-death actor e)
+                                   (throw +unhandled-exit+ nil))))
+                        (restart-case
+                            (multiple-value-bind (val handler)
+                                ;; We make no guarantee that an interrupted
+                                ;; actor's message queue will be in a
+                                ;; consistent state after an unhandled
+                                ;; error or exit.
+                                (with-interrupts (get-message actor))
+                              (cond (handler
+                                     (setf (actor-save-queue-checked-p actor) nil)
                                      (setf (actor-message-handler actor)
-                                           (or (with-interrupts
-                                                 (prog1
-                                                     (catch +new-handler+
-                                                       (funcall handler val)
-                                                       nil)
-                                                   (enqueue actor queue)))
+                                           (or (prog1
+                                                   (catch +new-handler+
+                                                     (with-interrupts
+                                                       (funcall handler val))
+                                                     nil)
+                                                 (enqueue actor queue))
                                                'msg-handler))
-                                   (abort ()
-                                     :report "Kill the current actor."
-                                     (kill actor)))))
-                             (notify-actor-waiter scheduler))
-                            (t
-                             (setf (actor-save-queue-checked-p actor) t)
-                             (unless (compare-and-swap (actor-active-p actor) t nil)
-                               (enqueue actor queue))))))
+                                     (notify-actor-waiter scheduler))
+                                    (t
+                                     (setf (actor-save-queue-checked-p actor) t)
+                                     (unless (compare-and-swap (actor-active-p actor) t nil)
+                                       (enqueue actor queue)))))
+                          (abort ()
+                            :report "Kill the current actor."
+                            (kill actor))))))
                   (setf (actor-thread actor) nil)
                   (values))
                  (t
                   (wait-for-actors scheduler)
                   (go :keep-going))))))))
 
-(defun get-message (actor &aux (*current-actor* actor))
+(defun get-message (actor)
   (multiple-value-bind (msg handler)
       (unless (actor-save-queue-checked-p actor)
         (get-message-from-queue actor (actor-save-queue actor)))
