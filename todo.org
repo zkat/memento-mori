@@ -1,4 +1,4 @@
-* Memento-mori [13/23]
+* Memento-mori [14/24]
 ** DONE First-class threaded schedulers
    Make schedulers into first-class objects that can be used to manage
    scheduler threads and compartmentalize mori usage.
@@ -126,22 +126,34 @@
    Most things that accept 'actors' can actually accept actor designators,
    which are either pointers to actual actors, or symbols denoting named
    actors.  (send 'important-server "hi there")
-** TODO Supervisors
-   Implement a supervisor API
+** DONE Beefy actors [3/3]
+   CLOSED: [2012-09-08 Sat 15:51]
+   Add various bits of useful functionality to actors.
+*** DONE on-init/on-shutdown
+    CLOSED: [2012-08-11 Sat 16:15]
+*** DONE selective receive
+    CLOSED: [2012-08-11 Sat 22:39]
+    Need to make the selective-receive test safe. Right now, it's outside
+    of all the usual actor management.
+    The semantics also generally need to be fixed... If we successfully
+    handle a message, the next loop through needs to start consuming from
+    the save queue (I think it already does, but this needs to be
+    preserved, and actors need to remain scheduled)
+*** DONE Better api for selective receiving
+    CLOSED: [2012-09-08 Sat 15:51]
+    It seemed okay at first, but it kind of smells in practice... Yes, you
+    can do a selective receive on subsequent messages, but handling the
+    first one (after the init message) ends up being unconditional, and
+    there's nothing you can do about it.
 
+    Meh.
 ** TODO Higher-level actors
-*** TODO mori-srv
-    Provides a wrapper around regular message sending, an init/shutdown
-    API, and the ability to do selective receives (by changing a
-    selective-receive-function which will do the necessary secondary
-    message queue magic). Unlike gen_server, it doesn't provide synchronous
-    calls (because we're event-based), and it doesn't do anything terribly
-    special about state (since standard actors have the same capabilities
-    for maintaining state).
 *** TODO mori-fsm
     API for easily defining and handling fsm-based actors.
 *** TODO mori-cc
     API for easily defining and handling continuation-based actors.
+** TODO Supervisors
+   Implement a supervisor API
 ** TODO all-actors
    It doesn't need to be safe, but it may be a nice utility to have while
    debugging. Don't care enough to add it yet, though, since actors get

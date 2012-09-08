@@ -10,8 +10,9 @@
    #:on-message
    #:on-shutdown
    #:actor-alive-p
-   #:selective-receive
-   #:receive-cond
+   #:call-with-next-message
+   #:with-next-message
+   #:reject-message
 
    ;; Monitors
    #:monitor
@@ -103,30 +104,27 @@
         actor)))
 
 (defun init-handler (msg)
-  (when (eq msg +init-message+)
-    (lambda (msg)
-      (declare (ignore msg))
-      (on-init (actor-driver (current-actor))))))
+  (if (eq msg +init-message+)
+      (on-init (actor-driver (current-actor)))
+      (reject-message)))
 
 (defun msg-handler (msg)
-  (declare (ignore msg))
-  (lambda (msg)
-    (on-message (actor-driver (current-actor)) msg)))
+  (on-message (actor-driver (current-actor)) msg))
 
 (defvar +new-handler+ (gensym "NEW-HANDLER-"))
 
-(defmacro receive-cond ((value-var) &body clauses)
-  `(selective-receive
-    (lambda (,value-var)
-      (cond
-        ,@(loop for (test . forms) in clauses
-             collect `(,test (lambda (,value-var)
-                               (declare (ignorable ,value-var))
-                               ,@forms)))))))
-
-(defun selective-receive (test &aux (actor (current-actor)))
+(defun call-with-next-message (test &aux (actor (current-actor)))
   (assert (not (null actor)))
   (throw +new-handler+ test))
+
+(defmacro with-next-message ((msg-var) &body body)
+  `(call-with-next-message (lambda (,msg-var) ,@body)))
+
+(defvar +reject-message+ (gensym "REJECT-MESSAGE-"))
+
+(defun reject-message ()
+  (assert (not (null (current-actor))))
+  (throw +reject-message+ t))
 
 (defvar *current-actor* nil)
 (defun current-actor ()
@@ -435,27 +433,31 @@ under that name. If false, returns nil."
                                    (actor-death actor e)
                                    (throw +unhandled-exit+ nil))))
                         (restart-case
-                            (multiple-value-bind (val handler)
-                                ;; We make no guarantee that an interrupted
-                                ;; actor's message queue will be in a
-                                ;; consistent state after an unhandled
-                                ;; error or exit.
-                                (with-interrupts (get-message actor))
-                              (cond (handler
-                                     (setf (actor-save-queue-checked-p actor) nil)
-                                     (setf (actor-message-handler actor)
-                                           (or (prog1
-                                                   (catch +new-handler+
-                                                     (with-interrupts
-                                                       (funcall handler val))
-                                                     nil)
-                                                 (enqueue actor queue))
-                                               'msg-handler))
-                                     (notify-actor-waiter scheduler))
-                                    (t
-                                     (setf (actor-save-queue-checked-p actor) t)
-                                     (unless (compare-and-swap (actor-active-p actor) t nil)
-                                       (enqueue actor queue)))))
+                            (loop for (val got-val-p) = (multiple-value-list (get-message actor))
+                               while got-val-p
+                               if (let (message-accepted-p)
+                                    (setf (actor-message-handler actor)
+                                          (or (catch +new-handler+
+                                                (catch +reject-message+
+                                                  (with-interrupts
+                                                    (funcall
+                                                     (actor-message-handler actor)
+                                                     val))
+                                                  (setf message-accepted-p t))
+                                                (unless message-accepted-p
+                                                  (throw +new-handler+
+                                                    (actor-message-handler actor)))
+                                                nil)
+                                              'msg-handler))
+                                    message-accepted-p)
+                               do
+                                 (enqueue actor queue)
+                                 (setf (actor-save-queue-checked-p actor) nil)
+                                 (notify-actor-waiter scheduler)
+                                 (return)
+                               finally
+                                 (unless (compare-and-swap (actor-active-p actor) t nil)
+                                   (enqueue actor queue)))
                           (abort ()
                             :report "Kill the current actor."
                             (kill actor))))))
@@ -466,25 +468,14 @@ under that name. If false, returns nil."
                   (go :keep-going))))))))
 
 (defun get-message (actor)
-  (multiple-value-bind (msg handler)
+  (multiple-value-bind (msg got-val-p)
       (unless (actor-save-queue-checked-p actor)
-        (get-message-from-queue actor (actor-save-queue actor)))
-    (if handler
-        (values msg handler)
-        (get-message-from-queue actor (actor-queue actor)))))
-
-(defun get-message-from-queue (actor from-queue)
-  (loop
-     with result
-     for (val got-val-p) = (multiple-value-list (dequeue from-queue))
-     for handler = (when got-val-p (funcall (actor-message-handler actor) val))
-     while got-val-p
-     if (and handler (null result)) do (setf result (list val handler))
-     else collect val into invalids
-     finally
-       (progn
-         (map nil (rcurry #'enqueue (actor-save-queue actor)) invalids)
-         (return-from get-message-from-queue (values-list result)))))
+        (dequeue (actor-save-queue actor)))
+    (cond (got-val-p
+           (values msg got-val-p))
+          (t
+           (setf (actor-save-queue-checked-p actor) t)
+           (dequeue (actor-queue actor))))))
 
 (defun process-signals (actor)
   (loop for signal = (dequeue (actor-signals actor))
