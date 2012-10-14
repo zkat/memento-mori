@@ -20,26 +20,25 @@
        do (send actor message)))
   scheduler)
 
-(defun selective-receive-test (scheduler)
-  (let ((actor (spawn (lambda (msg)
-                        (format t "~&Got a message: ~a~%" msg)
-                        (with-next-message (msg)
-                          (cond ((eq msg 'two)
-                                 (format t "~&Got another message: ~a~%" msg)
-                                 (with-next-message (msg)
-                                   (cond ((eq msg 'three)
-                                          (format t "~&Got a third message: ~a~%" msg))
-                                         (t
-                                          (reject-message)))))
-                                (t
-                                 (reject-message))))
-                        (format t "~&This is never printed.~%"))
-                      :scheduler scheduler)))
-    (send actor 'one)
-    (send actor 'two)
-    (send actor 'three)
-    (send actor 'four)
-    (send actor 'five)))
+(defstruct server)
+
+(defmethod on-request ((server server) reply-to (name t) args)
+  (format t "~&Received a request from ~a. Replying with ARGS.~%" reply-to)
+  args)
+
+(defun request-reply-test (scheduler)
+  (let* ((server (spawn (make-server)
+                        :scheduler scheduler
+                        :debugp t))
+         (caller (spawn (lambda (msg)
+                          (declare (ignore msg))
+                          (format t "~&Sending request and waiting.~%")
+                          (with-reply (server reply 'test (list 1 2 3))
+                            (format t "~&Received a reply: ~s~%" reply)))
+                        :debugp t
+                        :scheduler scheduler)))
+    (send caller 'start)
+    scheduler))
 
 (defun local-exit-test (scheduler)
   (let ((actor (spawn (lambda (msg)

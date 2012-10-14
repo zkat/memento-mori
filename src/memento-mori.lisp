@@ -8,6 +8,7 @@
    #:send
    #:on-init
    #:on-message
+   #:on-request
    #:on-shutdown
    #:actor-alive-p
    #:call-with-next-message
@@ -44,7 +45,13 @@
 
    ;; Schedulers
    #:make-threaded-scheduler
-   #:stop-threaded-scheduler))
+   #:stop-threaded-scheduler
+
+   ;; Requests
+   #:with-reply
+   #:reply
+   #:request
+   #:defer-reply))
 (cl:in-package #:memento-mori)
 
 #+nil
@@ -56,9 +63,7 @@
   scheduler
   (signals (make-queue))
   (queue (make-queue))
-  (save-queue (make-queue))
-  (message-handler 'init-handler)
-  save-queue-checked-p
+  (pending-requests (make-hash-table :test #'eq))
   (alive-p t)
   active-p
   thread
@@ -102,14 +107,6 @@
     (if monitorp
         (values actor (monitor actor))
         actor)))
-
-(defun init-handler (msg)
-  (if (eq msg +init-message+)
-      (on-init (actor-driver (current-actor)))
-      (reject-message)))
-
-(defun msg-handler (msg)
-  (on-message (actor-driver (current-actor)) msg))
 
 (defvar +new-handler+ (gensym "NEW-HANDLER-"))
 
@@ -398,6 +395,20 @@ under that name. If false, returns nil."
 (defgeneric on-init (driver)
   (:method ((driver t)) t))
 
+(defun %handle-message (driver msg)
+  (cond ((eq +init-message+ msg)
+         (on-init driver))
+        ((request-p msg)
+         (%handle-request driver msg))
+        ((reply-p msg)
+         (%handle-reply msg))
+        ((functionp driver)
+         (funcall driver msg))
+        ((symbolp driver)
+         (funcall driver msg))
+        (t
+         (on-message driver msg))))
+
 (defgeneric on-message (driver message)
   (:method ((driver t) (message t))
     (error "No ON-MESSAGE method defined for ~s with message ~s."
@@ -420,62 +431,44 @@ under that name. If false, returns nil."
                   (catch +unhandled-exit+
                     (let ((*current-actor* actor))
                       (process-signals actor)
-                      (handler-bind
-                          ((error (lambda (e)
-                                    (when (actor-debug-p actor)
-                                      (bt:with-recursive-lock-held (*debugger-lock*)
-                                        (invoke-debugger e)))
-                                    (actor-death
-                                     actor
-                                     (make-condition 'exit :reason e))
-                                    (throw +unhandled-exit+ nil)))
-                           (exit (lambda (e)
-                                   (actor-death actor e)
-                                   (throw +unhandled-exit+ nil))))
-                        (restart-case
-                            (loop for (val got-val-p) = (multiple-value-list (get-message actor))
-                               while got-val-p
-                               if (let (message-accepted-p)
-                                    (setf (actor-message-handler actor)
-                                          (or (catch +new-handler+
-                                                (catch +reject-message+
-                                                  (with-interrupts
-                                                    (funcall
-                                                     (actor-message-handler actor)
-                                                     val))
-                                                  (setf message-accepted-p t))
-                                                (unless message-accepted-p
-                                                  (throw +new-handler+
-                                                    (actor-message-handler actor)))
-                                                nil)
-                                              'msg-handler))
-                                    message-accepted-p)
-                               do
-                                 (enqueue actor queue)
-                                 (setf (actor-save-queue-checked-p actor) nil)
-                                 (notify-actor-waiter scheduler)
-                                 (return)
-                               finally
-                                 (unless (compare-and-swap (actor-active-p actor) t nil)
-                                   (enqueue actor queue)))
-                          (abort ()
-                            :report "Kill the current actor."
-                            (kill actor))))))
+                      (restart-case
+                          (multiple-value-bind (val got-val-p)
+                              (dequeue (actor-queue actor))
+                            (cond
+                              (got-val-p
+                               (handler-bind
+                                   ((error
+                                     (lambda (e)
+                                       (when (actor-debug-p actor)
+                                         (bt:with-recursive-lock-held (*debugger-lock*)
+                                           (invoke-debugger e)))
+                                       (actor-death
+                                        actor
+                                        (make-condition 'exit :reason e))
+                                       (throw +unhandled-exit+ nil)))
+                                    (exit
+                                     (lambda (e)
+                                       (actor-death actor e)
+                                       (throw +unhandled-exit+ nil))))
+                                 (restart-case
+                                     (with-interrupts
+                                       (%handle-message (actor-driver actor) val))
+                                   (abort ()
+                                     :report "Kill the current actor."
+                                     (kill actor))))
+                               (enqueue actor queue)
+                               (notify-actor-waiter scheduler))
+                              ((not got-val-p)
+                               (unless (compare-and-swap (actor-active-p actor) t nil)
+                                 (enqueue actor queue)))))
+                        (abort ()
+                          :report "Kill the current actor."
+                          (kill actor)))))
                   (setf (actor-thread actor) nil)
                   (values))
                  (t
                   (wait-for-actors scheduler)
                   (go :keep-going))))))))
-
-(defun get-message (actor)
-  (multiple-value-bind (msg got-val-p)
-      (unless (actor-save-queue-checked-p actor)
-        (dequeue (actor-save-queue actor)))
-    (cond (got-val-p
-           (values msg got-val-p))
-          (t
-           (setf (actor-save-queue-checked-p actor) t)
-           (dequeue (actor-queue actor))))))
 
 (defun process-signals (actor)
   (loop for signal = (dequeue (actor-signals actor))
@@ -512,3 +505,69 @@ under that name. If false, returns nil."
         (actor-active-p actor) nil)
   (notify-links actor exit)
   (notify-monitors actor exit))
+
+;;;
+;;; Requests
+;;;
+(defstruct request
+  monitor
+  reply-to
+  name
+  args)
+
+(defstruct reply
+  (request nil :read-only t)
+  (values nil :read-only t))
+
+(defun add-reply-handler (request on-reply)
+  (setf (gethash request (actor-pending-requests (current-actor)))
+        on-reply))
+
+(defun pop-reply-handler (reply &aux (request (reply-request reply)))
+  (prog1 (gethash request (actor-pending-requests (current-actor)))
+    (remhash request (actor-pending-requests (current-actor)))))
+
+(defvar +defer-reply+ (gensym "DEFER-REPLY-"))
+
+(defun request (actor name args on-reply)
+  (let ((request (make-request :monitor (monitor actor)
+                               :reply-to (current-actor)
+                               :name name
+                               :args args)))
+    (add-reply-handler request on-reply)
+    (send actor request)
+    (values)))
+
+(defmacro with-reply ((actor reply-var name args) &body body)
+  `(request ,actor ,name ,args (lambda (,reply-var) ,@body)))
+
+(defun reply (request &rest values)
+  (send (request-reply-to request)
+        (make-reply :request request
+                    :values values)))
+
+(defun defer-reply ()
+  (ignore-errors (throw +defer-reply+ nil))
+  (error "DEFER-REPLY must be called within the scope of an ON-REQUEST handler."))
+
+(defgeneric on-request (driver reply-to request-name request-args)
+  (:method (driver (reply-to t) name args)
+    (error "No ON-REQUEST method defined for ~s with name ~s and args ~s."
+           driver name args)))
+
+(defun %handle-request (driver req)
+  (catch +defer-reply+
+    (send (request-reply-to req)
+          (make-reply
+           :request req
+           :values
+           (multiple-value-list
+            (on-request driver
+                        (request-reply-to req)
+                        (request-name req)
+                        (request-args req)))))))
+
+(defun %handle-reply (reply)
+  (demonitor (request-monitor (reply-request reply)))
+  (apply (pop-reply-handler reply)
+         (reply-values reply)))
