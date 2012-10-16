@@ -51,7 +51,8 @@
    #:with-reply
    #:reply
    #:request
-   #:defer-reply))
+   #:defer-reply
+   #:defrequest))
 (cl:in-package #:memento-mori)
 
 #+nil
@@ -530,6 +531,9 @@ under that name. If false, returns nil."
 (defvar +defer-reply+ (gensym "DEFER-REPLY-"))
 
 (defun request (actor name args on-reply)
+  (assert (current-actor)
+          ()
+          "REQUEST must be called from within an existing actor.")
   (let ((request (make-request :monitor (monitor actor)
                                :reply-to (current-actor)
                                :name name
@@ -550,8 +554,8 @@ under that name. If false, returns nil."
   (ignore-errors (throw +defer-reply+ nil))
   (error "DEFER-REPLY must be called within the scope of an ON-REQUEST handler."))
 
-(defgeneric on-request (driver reply-to request-name request-args)
-  (:method (driver (reply-to t) name args)
+(defgeneric on-request (driver request request-name request-args)
+  (:method (driver (request t) name args)
     (error "No ON-REQUEST method defined for ~s with name ~s and args ~s."
            driver name args)))
 
@@ -563,7 +567,7 @@ under that name. If false, returns nil."
            :values
            (multiple-value-list
             (on-request driver
-                        (request-reply-to req)
+                        req
                         (request-name req)
                         (request-args req)))))))
 
@@ -571,3 +575,18 @@ under that name. If false, returns nil."
   (demonitor (request-monitor (reply-request reply)))
   (apply (pop-reply-handler reply)
          (reply-values reply)))
+
+(defmacro defrequest (name lambda-list
+                      (server-var server-specializer &key request)
+                      &body body)
+  (with-unique-names (args handler)
+    `(progn
+       (defun ,name (,handler ,server-var &rest ,args)
+         (request ,server-var ',name ,args ,handler))
+       (defmethod on-request ((,server-var ,server-specializer)
+                              (,(or request (gensym "REQUEST")) t)
+                              (,(gensym "NAME") (eql ',name))
+                              ,args)
+         (labels ((,name ,lambda-list ,@body))
+           (apply #',name ,args)))
+       ',name)))
